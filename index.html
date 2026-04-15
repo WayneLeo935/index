@@ -286,7 +286,7 @@
                 <div id="group-tabs" class="flex items-center gap-1 pt-1 mb-4 pb-3 border-b border-white/10 overflow-x-auto no-scrollbar"></div>
                 <!-- 书签网格 + 分页 -->
                 <div class="flex-1 flex flex-col min-h-0">
-                    <div class="flex-1 min-h-0 overflow-hidden">
+                    <div class="flex-1 min-h-0">
                         <div class="grid grid-cols-4 gap-3" id="bookmarks-grid"></div>
                     </div>
                     <div class="flex items-center justify-end gap-2 mt-3 opacity-0 group-hover/shortcuts:opacity-40 transition-opacity">
@@ -523,7 +523,7 @@
             { id: 1, text: '开始设计第一稿', completed: false }
         ];
 
-        const itemsPerPage = 5; // 5个书签 + 1个添加按钮 = 6格
+        const itemsPerPage = 7; // 7个书签 + 1个添加按钮 = 8格（4列×2行）
 
         // 每个分组独立记忆当前页，存入 localStorage
         let groupPages = JSON.parse(localStorage.getItem('shortcuts.pages')) || {};
@@ -539,7 +539,7 @@
             const bms = getCurrentBookmarks();
             const pageItems = bms.slice(start, end);
 
-            const totalPages = Math.max(1, Math.ceil((bms.length + 1) / 6));
+            const totalPages = Math.max(1, Math.ceil((bms.length + 1) / (itemsPerPage + 1)));
             document.getElementById('page-indicator').innerText = `${page + 1}/${totalPages}`;
 
             let html = pageItems.map((s, index) => {
@@ -622,7 +622,7 @@
                     srcBms.splice(editingIndex, 1);
                     targetGroup.bookmarks.push({ ...existing, name, url: formattedUrl });
                     // 源组页码越界修正
-                    const totalPages = Math.ceil((srcBms.length + 1) / 6);
+                    const totalPages = Math.ceil((srcBms.length + 1) / (itemsPerPage + 1));
                     const page = getCurrentPage();
                     if (page >= totalPages && page > 0) setCurrentPage(page - 1);
                     currentGroupId = targetGroupId;
@@ -644,7 +644,7 @@
             const bms = getCurrentBookmarks();
             bms.splice(index, 1);
             saveGroups();
-            const totalPages = Math.ceil((bms.length + 1) / 6);
+            const totalPages = Math.ceil((bms.length + 1) / (itemsPerPage + 1));
             const page = getCurrentPage();
             if (page >= totalPages && page > 0) setCurrentPage(page - 1);
             renderBookmarks();
@@ -657,7 +657,7 @@
 
         function nextPage() {
             const page = getCurrentPage();
-            const totalPages = Math.ceil((getCurrentBookmarks().length + 1) / 6);
+            const totalPages = Math.ceil((getCurrentBookmarks().length + 1) / (itemsPerPage + 1));
             if (page < totalPages - 1) { setCurrentPage(page + 1); renderBookmarks(); }
         }
 
