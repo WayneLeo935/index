@@ -277,9 +277,9 @@
         </div>
 
         <!-- 下方分栏区域 -->
-        <div class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 mt-12 overflow-hidden pb-4">
-            <!-- 左分栏：常用网站 -->
-            <div class="apple-glass rounded-[2.5rem] p-8 flex flex-col overflow-hidden group/shortcuts">
+        <div id="panels-container" class="flex-1 flex gap-8 mt-12 overflow-hidden pb-4">
+            <!-- 快捷方式面板 -->
+            <div id="panel-shortcuts" class="apple-glass rounded-[2.5rem] p-8 flex flex-col overflow-hidden group/shortcuts flex-1 min-w-0">
                 <div class="flex items-center mb-4">
                     <div class="flex items-center gap-3 text-[18px] uppercase tracking-[0.4em] font-normal">
                         <i data-lucide="layout-grid" class="w-6 h-6"></i> 快捷方式
@@ -289,8 +289,8 @@
                 <div id="group-tabs" class="flex items-center gap-1 pt-1 mb-4 pb-3 border-b border-white/10 overflow-x-auto no-scrollbar"></div>
                 <!-- 书签网格 + 右侧竖向分页 -->
                 <div class="flex-1 flex gap-2 min-h-0">
-                    <div class="flex-1 min-h-0">
-                        <div class="grid grid-cols-4 gap-3" id="bookmarks-grid"></div>
+                    <div class="flex-1 min-h-0" id="bookmarks-grid-wrapper">
+                        <div class="grid gap-3" id="bookmarks-grid"></div>
                     </div>
                     <!-- 竖向分页控件 -->
                     <div class="flex flex-col items-center justify-center gap-1.5 opacity-0 group-hover/shortcuts:opacity-40 transition-opacity">
@@ -301,19 +301,14 @@
                 </div>
             </div>
 
-            <!-- 中分栏：Note / Todo 切换 -->
-            <div class="apple-glass rounded-[2.5rem] p-8 flex flex-col overflow-hidden relative">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="flex gap-4">
-                        <button onclick="switchTab('note')" id="tab-note" class="flex items-center gap-3 text-[18px] uppercase tracking-[0.4em] font-normal transition-all" style="opacity:1"><i data-lucide="file-text" class="w-6 h-6"></i>笔记</button>
-                        <button onclick="switchTab('todo')" id="tab-todo" class="flex items-center gap-3 text-[18px] uppercase tracking-[0.4em] font-normal transition-all" style="opacity:0.3"><i data-lucide="check-square" class="w-6 h-6"></i>待办</button>
-                    </div>
-                    <div id="todo-add-btn" class="hidden">
-                        <button onclick="addTodo()" class="opacity-30 hover:opacity-100 transition-all"><i data-lucide="plus" class="w-4 h-4"></i></button>
+            <!-- 笔记面板 -->
+            <div id="panel-note-col" class="apple-glass rounded-[2.5rem] p-8 flex flex-col overflow-hidden flex-1 min-w-0">
+                <div class="flex items-center mb-4">
+                    <div class="flex items-center gap-3 text-[18px] uppercase tracking-[0.4em] font-normal">
+                        <i data-lucide="file-text" class="w-6 h-6"></i> 笔记
                     </div>
                 </div>
-                
-                <div id="pane-note" class="flex-1 flex flex-col overflow-hidden">
+                <div class="flex-1 flex flex-col overflow-hidden">
                     <div class="toolbar">
                         <button onclick="formatDoc('bold')" class="toolbar-btn" title="加粗"><i data-lucide="bold" class="w-4 h-4"></i></button>
                         <button onclick="formatDoc('italic')" class="toolbar-btn" title="斜体"><i data-lucide="italic" class="w-4 h-4"></i></button>
@@ -333,14 +328,25 @@
                     </div>
                     <div id="notepad" contenteditable="true" class="rich-editor no-scrollbar" placeholder="开始记录你的想法..."></div>
                 </div>
-                
-                <div id="pane-todo" class="flex-1 hidden overflow-y-auto no-scrollbar space-y-3">
+            </div>
+
+            <!-- 待办面板 -->
+            <div id="panel-todo-col" class="apple-glass rounded-[2.5rem] p-8 flex flex-col overflow-hidden flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3 text-[18px] uppercase tracking-[0.4em] font-normal">
+                        <i data-lucide="check-square" class="w-6 h-6"></i> 待办
+                    </div>
+                    <button onclick="addTodo()" class="opacity-30 hover:opacity-100 transition-all">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div class="flex-1 overflow-y-auto no-scrollbar">
                     <div id="todo-list" class="space-y-3"></div>
                 </div>
             </div>
 
-            <!-- 右分栏：桌面宠物 -->
-            <div class="apple-glass rounded-[2.5rem] p-8 flex flex-col items-center justify-center overflow-hidden">
+            <!-- 宠物面板 -->
+            <div id="panel-pet" class="apple-glass rounded-[2.5rem] p-8 flex flex-col items-center justify-center overflow-hidden flex-1 min-w-0">
                 <div class="flex items-center gap-3 mb-6 text-[18px] uppercase tracking-[0.4em] font-normal self-start">
                     <i data-lucide="heart" class="w-6 h-6"></i> 宠物
                 </div>
@@ -474,6 +480,17 @@
                         <!-- 动态渲染预设图片 -->
                     </div>
                 </div>
+
+                <!-- 面板显示 -->
+                <div class="space-y-4 pt-4 border-t border-white/10">
+                    <div class="text-[9px] uppercase tracking-[0.3em] font-black opacity-30 ml-4">面板显示</div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="toggle-shortcuts" onclick="togglePanel('shortcuts')" class="py-3 px-4 rounded-2xl text-[10px] uppercase tracking-[0.2em] font-black border border-white/20 transition-all">快捷方式</button>
+                        <button id="toggle-note" onclick="togglePanel('note')" class="py-3 px-4 rounded-2xl text-[10px] uppercase tracking-[0.2em] font-black border border-white/20 transition-all">笔记</button>
+                        <button id="toggle-todo" onclick="togglePanel('todo')" class="py-3 px-4 rounded-2xl text-[10px] uppercase tracking-[0.2em] font-black border border-white/20 transition-all">待办</button>
+                        <button id="toggle-pet" onclick="togglePanel('pet')" class="py-3 px-4 rounded-2xl text-[10px] uppercase tracking-[0.2em] font-black border border-white/20 transition-all">宠物</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -547,10 +564,12 @@
             { id: 1, text: '开始设计第一稿', completed: false }
         ];
 
-        const itemsPerPage = 7; // 7个书签 + 1个添加按钮 = 8格（4列×2行）
-        // 页数 = ceil(书签数 / 每页数)，最少 1 页；最后一页始终显示添加按钮
+        // 书签网格：动态列数，每页 2 行；cols * 2 - 1 = 书签数（最后一格留给添加按钮）
+        let currentCols = 4;
+        let currentItemsPerPage = 7; // 初始值对应 4 列
+
         function getTotalPages(bms) {
-            return Math.max(1, Math.ceil(bms.length / itemsPerPage));
+            return Math.max(1, Math.ceil(bms.length / currentItemsPerPage));
         }
 
         // 每个分组独立记忆当前页，存入 localStorage
@@ -561,9 +580,10 @@
 
         function renderBookmarks() {
             const grid = document.getElementById('bookmarks-grid');
+            grid.style.gridTemplateColumns = `repeat(${currentCols}, 1fr)`;
             const page = getCurrentPage();
-            const start = page * itemsPerPage;
-            const end = start + itemsPerPage;
+            const start = page * currentItemsPerPage;
+            const end = start + currentItemsPerPage;
             const bms = getCurrentBookmarks();
             const pageItems = bms.slice(start, end);
 
@@ -587,7 +607,7 @@
 
             // 当前页未满，或当前页是最后一页（始终保留添加入口）
             const isLastPage = (page + 1) >= totalPages;
-            if (pageItems.length < itemsPerPage || isLastPage) {
+            if (pageItems.length < currentItemsPerPage || isLastPage) {
                 html += `
                     <button onclick="openAddModal()" class="flex flex-col items-center gap-2 group">
                         <div class="apple-glass w-[84px] h-[84px] mx-auto rounded-[1.2rem] flex items-center justify-center border-dashed border-white/10 hover:bg-white/10 transition-all">
@@ -600,6 +620,23 @@
 
             grid.innerHTML = html;
             lucide.createIcons();
+        }
+
+        // 根据快捷方式面板宽度动态计算列数与每页数，宽度变化时重置到第一页
+        function calcAndRenderBookmarks() {
+            const panel = document.getElementById('panel-shortcuts');
+            if (!panel || panel.classList.contains('hidden')) return;
+            const wrapper = document.getElementById('bookmarks-grid-wrapper');
+            if (!wrapper) return;
+            const availableWidth = wrapper.clientWidth;
+            const newCols = Math.max(1, Math.floor(availableWidth / 100));
+            const newPerPage = newCols * 2 - 1;
+            if (newCols !== currentCols || newPerPage !== currentItemsPerPage) {
+                currentCols = newCols;
+                currentItemsPerPage = newPerPage;
+                setCurrentPage(0);
+            }
+            renderBookmarks();
         }
 
         let editingIndex = -1;
@@ -1113,13 +1150,56 @@
             np.focus();
         }
 
-        function switchTab(tab) {
-            const isNote = tab === 'note';
-            document.getElementById('pane-note').classList.toggle('hidden', !isNote);
-            document.getElementById('pane-todo').classList.toggle('hidden', isNote);
-            document.getElementById('todo-add-btn').classList.toggle('hidden', isNote);
-            document.getElementById('tab-note').style.opacity = isNote ? '1' : '0.3';
-            document.getElementById('tab-todo').style.opacity = isNote ? '0.3' : '1';
+        // ===== 面板显示控制 =====
+        const PANEL_KEYS = ['shortcuts', 'note', 'todo', 'pet'];
+        const PANEL_ID_MAP = {
+            shortcuts: 'panel-shortcuts',
+            note: 'panel-note-col',
+            todo: 'panel-todo-col',
+            pet: 'panel-pet'
+        };
+
+        function loadPanelVisibility() {
+            const saved = localStorage.getItem('panel_visibility_v1');
+            if (saved) { try { return JSON.parse(saved); } catch(e) {} }
+            return { shortcuts: true, note: true, todo: true, pet: true };
+        }
+
+        let panelVisibility = loadPanelVisibility();
+
+        function savePanelVisibility() {
+            localStorage.setItem('panel_visibility_v1', JSON.stringify(panelVisibility));
+        }
+
+        function updatePanelToggleUI() {
+            PANEL_KEYS.forEach(key => {
+                const btn = document.getElementById('toggle-' + key);
+                if (!btn) return;
+                if (panelVisibility[key]) {
+                    btn.style.background = 'rgba(255,255,255,0.15)';
+                    btn.style.opacity = '1';
+                } else {
+                    btn.style.background = 'transparent';
+                    btn.style.opacity = '0.4';
+                }
+            });
+        }
+
+        function applyPanelVisibility() {
+            PANEL_KEYS.forEach(key => {
+                const el = document.getElementById(PANEL_ID_MAP[key]);
+                if (el) el.classList.toggle('hidden', !panelVisibility[key]);
+            });
+            updatePanelToggleUI();
+            setTimeout(calcAndRenderBookmarks, 50);
+        }
+
+        function togglePanel(key) {
+            const visibleCount = PANEL_KEYS.filter(k => panelVisibility[k]).length;
+            if (panelVisibility[key] && visibleCount <= 1) return; // 至少保留一个面板
+            panelVisibility[key] = !panelVisibility[key];
+            savePanelVisibility();
+            applyPanelVisibility();
         }
 
         // 宠物交互
@@ -1135,8 +1215,14 @@
 
         window.onload = () => {
             renderGroupTabs();
-            renderBookmarks();
             renderTodos();
+            applyPanelVisibility(); // 恢复面板开关状态，内部会触发 calcAndRenderBookmarks
+            // ResizeObserver：快捷方式面板宽度变化时重新计算书签布局
+            const shortcutsPanelEl = document.getElementById('panel-shortcuts');
+            if (shortcutsPanelEl && window.ResizeObserver) {
+                const ro = new ResizeObserver(() => calcAndRenderBookmarks());
+                ro.observe(shortcutsPanelEl);
+            }
             const mode = localStorage.getItem('workbench_bg_mode_v8') || 'url';
             setActiveBgModeUI(mode);
 
