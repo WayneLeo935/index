@@ -81,6 +81,22 @@
             font-size: 0.875rem;
             line-height: 1.6;
         }
+        /* 分组标签栏 */
+        .group-tab {
+            padding: 0.28rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            opacity: 0.35;
+            transition: all 0.2s;
+            cursor: pointer;
+            white-space: nowrap;
+            user-select: none;
+        }
+        .group-tab:hover { opacity: 0.65; background: rgba(255,255,255,0.08); }
+        .group-tab.active { opacity: 1; background: rgba(255,255,255,0.15); }
         .rich-editor:empty:before {
             content: attr(placeholder);
             opacity: 0.2;
@@ -251,18 +267,23 @@
         <div class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 mt-12 overflow-hidden pb-4">
             <!-- 左分栏：常用网站 -->
             <div class="apple-glass rounded-[2.5rem] p-8 flex flex-col overflow-hidden group/shortcuts">
-                <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center mb-4">
                     <div class="flex items-center gap-3 text-[18px] uppercase tracking-[0.4em] font-normal">
                         <i data-lucide="layout-grid" class="w-6 h-6"></i> 快捷方式
                     </div>
-                    <div class="flex gap-2 opacity-0 group-hover/shortcuts:opacity-30 transition-opacity">
-                        <button onclick="prevPage()" class="hover:opacity-100"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-                        <span id="page-indicator" class="text-[10px] font-black">1/1</span>
-                        <button onclick="nextPage()" class="hover:opacity-100"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
-                    </div>
                 </div>
-                <div class="flex-1">
-                    <div class="grid grid-cols-4 gap-3" id="bookmarks-grid"></div>
+                <!-- 分组标签栏 -->
+                <div id="group-tabs" class="flex items-center gap-1 mb-4 pb-3 border-b border-white/10 overflow-x-auto no-scrollbar"></div>
+                <!-- 书签网格 + 分页 -->
+                <div class="flex-1 flex flex-col">
+                    <div class="flex-1">
+                        <div class="grid grid-cols-4 gap-3" id="bookmarks-grid"></div>
+                    </div>
+                    <div class="flex items-center justify-end gap-2 mt-3 opacity-0 group-hover/shortcuts:opacity-40 transition-opacity">
+                        <button onclick="prevPage()" class="hover:opacity-100 transition-opacity"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                        <span id="page-indicator" class="text-[10px] font-black">1/1</span>
+                        <button onclick="nextPage()" class="hover:opacity-100 transition-opacity"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                    </div>
                 </div>
             </div>
 
@@ -347,6 +368,24 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- 新建/重命名分组 modal -->
+    <div id="group-name-modal" class="modal">
+        <div class="apple-glass p-12 rounded-[4rem] max-w-sm w-full relative modal-content">
+            <h3 id="group-modal-title" class="text-2xl font-light mb-10 tracking-tight">新建分组</h3>
+            <input type="text" id="group-name-input" class="apple-input font-light mb-6" placeholder="分组名称...">
+            <div class="flex gap-4">
+                <button onclick="toggleModal('group-name-modal')" class="flex-1 bg-white/5 border border-white/10 py-5 rounded-[2rem] text-[10px] uppercase tracking-widest font-black opacity-50">取消</button>
+                <button onclick="confirmGroupName()" class="flex-1 bg-white text-black font-black py-5 rounded-[2rem] text-[10px] uppercase tracking-widest">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分组右键/长按菜单 -->
+    <div id="group-ctx-menu" class="hidden fixed z-50 apple-glass rounded-2xl p-2 shadow-xl min-w-[120px]">
+        <button onclick="openRenameGroupModal()" class="w-full text-left px-3 py-2 text-[11px] uppercase tracking-[0.08em] font-bold rounded-xl hover:bg-white/10 transition-all">重命名</button>
+        <button id="ctx-delete-btn" onclick="confirmDeleteGroup()" class="w-full text-left px-3 py-2 text-[11px] uppercase tracking-[0.08em] font-bold rounded-xl hover:bg-red-500/20 text-red-300 transition-all">删除</button>
     </div>
 
     <div id="todo-modal" class="modal">
@@ -450,18 +489,24 @@
             { id: 1, text: '开始设计第一稿', completed: false }
         ];
 
-        let currentPage = 0;
-        const itemsPerPage = 5; // 5个网站 + 1个添加按钮 = 6格
+        const itemsPerPage = 5; // 5个书签 + 1个添加按钮 = 6格
+
+        // 每个分组独立记忆当前页，存入 localStorage
+        let groupPages = JSON.parse(localStorage.getItem('shortcuts.pages')) || {};
+        function savePages() { localStorage.setItem('shortcuts.pages', JSON.stringify(groupPages)); }
+        function getCurrentPage() { return groupPages[currentGroupId] || 0; }
+        function setCurrentPage(n) { groupPages[currentGroupId] = n; savePages(); }
 
         function renderBookmarks() {
             const grid = document.getElementById('bookmarks-grid');
-            const start = currentPage * itemsPerPage;
+            const page = getCurrentPage();
+            const start = page * itemsPerPage;
             const end = start + itemsPerPage;
             const bms = getCurrentBookmarks();
             const pageItems = bms.slice(start, end);
 
             const totalPages = Math.max(1, Math.ceil((bms.length + 1) / 6));
-            document.getElementById('page-indicator').innerText = `${currentPage + 1}/${totalPages}`;
+            document.getElementById('page-indicator').innerText = `${page + 1}/${totalPages}`;
 
             let html = pageItems.map((s, index) => {
                 const globalIndex = start + index;
@@ -538,25 +583,114 @@
             const bms = getCurrentBookmarks();
             bms.splice(index, 1);
             saveGroups();
-            // 如果删除了之后当前页空了，且不是第一页，则跳到前一页
             const totalPages = Math.ceil((bms.length + 1) / 6);
-            if (currentPage >= totalPages && currentPage > 0) currentPage--;
+            const page = getCurrentPage();
+            if (page >= totalPages && page > 0) setCurrentPage(page - 1);
             renderBookmarks();
         }
 
         function prevPage() {
-            if (currentPage > 0) {
-                currentPage--;
-                renderBookmarks();
-            }
+            const page = getCurrentPage();
+            if (page > 0) { setCurrentPage(page - 1); renderBookmarks(); }
         }
 
         function nextPage() {
+            const page = getCurrentPage();
             const totalPages = Math.ceil((getCurrentBookmarks().length + 1) / 6);
-            if (currentPage < totalPages - 1) {
-                currentPage++;
-                renderBookmarks();
+            if (page < totalPages - 1) { setCurrentPage(page + 1); renderBookmarks(); }
+        }
+
+        // ===== 分组标签栏 =====
+        function renderGroupTabs() {
+            const container = document.getElementById('group-tabs');
+            let html = groups.map(g => {
+                const active = g.id === currentGroupId ? ' active' : '';
+                return `<button class="group-tab${active}" onclick="switchGroup('${g.id}')" oncontextmenu="showGroupCtxMenu(event,'${g.id}')" data-gid="${g.id}">${g.name}</button>`;
+            }).join('');
+            html += `<button onclick="openNewGroupModal()" class="ml-auto flex-shrink-0 opacity-30 hover:opacity-70 transition-opacity p-1 rounded-lg hover:bg-white/10" title="新建分组"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>`;
+            container.innerHTML = html;
+            lucide.createIcons();
+
+            // 长按支持（移动端）
+            groups.forEach(g => {
+                const btn = container.querySelector(`[data-gid="${g.id}"]`);
+                if (!btn) return;
+                let timer;
+                btn.addEventListener('touchstart', () => { timer = setTimeout(() => showGroupCtxMenu(null, g.id, btn), 600); }, { passive: true });
+                btn.addEventListener('touchend', () => clearTimeout(timer));
+                btn.addEventListener('touchmove', () => clearTimeout(timer));
+            });
+        }
+
+        function switchGroup(id) {
+            currentGroupId = id;
+            renderGroupTabs();
+            renderBookmarks();
+        }
+
+        // ===== 新建 / 重命名分组 =====
+        let groupModalMode = 'create';
+        let ctxGroupId = null;
+
+        function openNewGroupModal() {
+            groupModalMode = 'create';
+            document.getElementById('group-modal-title').innerText = '新建分组';
+            document.getElementById('group-name-input').value = '';
+            toggleModal('group-name-modal');
+            setTimeout(() => document.getElementById('group-name-input').focus(), 100);
+        }
+
+        function openRenameGroupModal() {
+            hideGroupCtxMenu();
+            groupModalMode = 'rename';
+            document.getElementById('group-modal-title').innerText = '重命名分组';
+            const g = groups.find(g => g.id === ctxGroupId);
+            document.getElementById('group-name-input').value = g ? g.name : '';
+            toggleModal('group-name-modal');
+            setTimeout(() => document.getElementById('group-name-input').focus(), 100);
+        }
+
+        function confirmGroupName() {
+            const name = document.getElementById('group-name-input').value.trim();
+            if (!name) return;
+            if (groupModalMode === 'create') {
+                const id = 'group-' + Date.now();
+                groups.push({ id, name, bookmarks: [] });
+                saveGroups();
+                switchGroup(id);
+            } else {
+                const g = groups.find(g => g.id === ctxGroupId);
+                if (g) { g.name = name; saveGroups(); renderGroupTabs(); }
             }
+            toggleModal('group-name-modal');
+        }
+
+        // ===== 右键 / 长按菜单 =====
+        function showGroupCtxMenu(e, groupId, refEl) {
+            if (e) e.preventDefault();
+            ctxGroupId = groupId;
+            const menu = document.getElementById('group-ctx-menu');
+            document.getElementById('ctx-delete-btn').style.display = groups.length <= 1 ? 'none' : '';
+            menu.classList.remove('hidden');
+            const x = e ? e.clientX : refEl.getBoundingClientRect().left;
+            const y = e ? e.clientY : refEl.getBoundingClientRect().bottom + 4;
+            menu.style.left = Math.min(x, window.innerWidth - 150) + 'px';
+            menu.style.top = (y + 4) + 'px';
+        }
+
+        function hideGroupCtxMenu() {
+            document.getElementById('group-ctx-menu').classList.add('hidden');
+        }
+
+        function confirmDeleteGroup() {
+            hideGroupCtxMenu();
+            if (groups.length <= 1) return;
+            groups = groups.filter(g => g.id !== ctxGroupId);
+            delete groupPages[ctxGroupId];
+            saveGroups(); savePages();
+            if (currentGroupId === ctxGroupId) currentGroupId = groups[0].id;
+            renderGroupTabs();
+            renderBookmarks();
         }
 
         function renderTodos() {
@@ -837,11 +971,21 @@
         }
 
         // 点击遮罩层关闭弹窗（点内容区域不关闭）
-        ['donate-modal', 'bookmark-modal', 'settings-modal'].forEach((id) => {
+        ['donate-modal', 'bookmark-modal', 'settings-modal', 'group-name-modal'].forEach((id) => {
             const modal = document.getElementById(id);
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) toggleModal(id);
             });
+        });
+
+        // 点击任意处关闭右键菜单
+        document.addEventListener('click', (e) => {
+            if (!document.getElementById('group-ctx-menu').contains(e.target)) hideGroupCtxMenu();
+        });
+
+        // 分组名称输入框回车确认
+        document.getElementById('group-name-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') confirmGroupName();
         });
 
         const np = document.getElementById('notepad');
@@ -874,6 +1018,7 @@
         };
 
         window.onload = () => {
+            renderGroupTabs();
             renderBookmarks();
             renderTodos();
             const mode = localStorage.getItem('workbench_bg_mode_v8') || 'url';
