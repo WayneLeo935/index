@@ -299,13 +299,13 @@
 
             <!-- 中分栏：Note / Todo 切换 -->
             <div class="apple-glass rounded-[2.5rem] p-8 flex flex-col overflow-hidden relative">
-                <div class="flex items-center justify-between mb-6">
-                    <div class="flex gap-4">
-                        <button onclick="switchTab('note')" id="tab-note" class="flex items-center gap-3 text-[18px] uppercase tracking-[0.4em] font-normal transition-all opacity-100"><i data-lucide="file-text" class="w-6 h-6"></i>笔记</button>
-                        <button onclick="switchTab('todo')" id="tab-todo" class="flex items-center gap-3 text-[18px] uppercase tracking-[0.4em] font-normal transition-all opacity-30"><i data-lucide="check-square" class="w-6 h-6"></i>待办</button>
+                <div class="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
+                    <div class="flex gap-1">
+                        <button onclick="switchTab('note')" id="tab-note" class="group-tab active flex items-center gap-1.5"><i data-lucide="file-text" class="w-3.5 h-3.5"></i>笔记</button>
+                        <button onclick="switchTab('todo')" id="tab-todo" class="group-tab flex items-center gap-1.5"><i data-lucide="check-square" class="w-3.5 h-3.5"></i>待办</button>
                     </div>
                     <div id="todo-add-btn" class="hidden">
-                        <button onclick="addTodo()" class="opacity-30 hover:opacity-100 transition-all"><i data-lucide="plus" class="w-4 h-4"></i></button>
+                        <button onclick="addTodo()" class="opacity-30 hover:opacity-100 transition-all"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>
                     </div>
                 </div>
                 
@@ -1094,8 +1094,8 @@
             document.getElementById('pane-note').classList.toggle('hidden', !isNote);
             document.getElementById('pane-todo').classList.toggle('hidden', isNote);
             document.getElementById('todo-add-btn').classList.toggle('hidden', isNote);
-            document.getElementById('tab-note').style.opacity = isNote ? '1' : '0.3';
-            document.getElementById('tab-todo').style.opacity = isNote ? '0.3' : '1';
+            document.getElementById('tab-note').classList.toggle('active', isNote);
+            document.getElementById('tab-todo').classList.toggle('active', !isNote);
         }
 
         // 宠物交互
