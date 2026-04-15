@@ -400,12 +400,51 @@
     <script>
         lucide.createIcons();
 
-        let bookmarks = JSON.parse(localStorage.getItem('bookmarks_v7')) || [
-            { name: 'Bilibili', url: 'https://bilibili.com', icon: 'tv' },
-            { name: 'Github', url: 'https://github.com', icon: 'github' },
-            { name: 'ArchDaily', url: 'https://archdaily.com', icon: 'layout' },
-            { name: 'Pinterest', url: 'https://pinterest.com', icon: 'image' }
-        ];
+        // --- 快捷方式分组数据 ---
+        function loadGroups() {
+            const saved = localStorage.getItem('shortcuts.groups');
+            if (saved) return JSON.parse(saved);
+
+            // 从旧格式迁移，保留数据不丢失
+            const old = localStorage.getItem('bookmarks_v7');
+            if (old) {
+                const migrated = [{ id: 'group-default', name: '默认', bookmarks: JSON.parse(old) }];
+                localStorage.setItem('shortcuts.groups', JSON.stringify(migrated));
+                return migrated;
+            }
+
+            // 首次默认分组
+            return [
+                {
+                    id: 'group-work',
+                    name: '工作',
+                    bookmarks: [
+                        { name: 'Github', url: 'https://github.com', icon: 'github' },
+                        { name: 'ArchDaily', url: 'https://archdaily.com', icon: 'layout' }
+                    ]
+                },
+                {
+                    id: 'group-fun',
+                    name: '娱乐',
+                    bookmarks: [
+                        { name: 'Bilibili', url: 'https://bilibili.com', icon: 'tv' },
+                        { name: 'Pinterest', url: 'https://pinterest.com', icon: 'image' }
+                    ]
+                }
+            ];
+        }
+
+        function saveGroups() {
+            localStorage.setItem('shortcuts.groups', JSON.stringify(groups));
+        }
+
+        function getCurrentBookmarks() {
+            const g = groups.find(g => g.id === currentGroupId);
+            return g ? g.bookmarks : (groups[0]?.bookmarks || []);
+        }
+
+        let groups = loadGroups();
+        let currentGroupId = groups[0]?.id || null;
 
         let todos = JSON.parse(localStorage.getItem('todos_v7')) || [
             { id: 1, text: '开始设计第一稿', completed: false }
@@ -418,9 +457,10 @@
             const grid = document.getElementById('bookmarks-grid');
             const start = currentPage * itemsPerPage;
             const end = start + itemsPerPage;
-            const pageItems = bookmarks.slice(start, end);
-            
-            const totalPages = Math.max(1, Math.ceil((bookmarks.length + 1) / 6));
+            const bms = getCurrentBookmarks();
+            const pageItems = bms.slice(start, end);
+
+            const totalPages = Math.max(1, Math.ceil((bms.length + 1) / 6));
             document.getElementById('page-indicator').innerText = `${currentPage + 1}/${totalPages}`;
 
             let html = pageItems.map((s, index) => {
@@ -466,7 +506,7 @@
 
         function editBookmark(index) {
             editingIndex = index;
-            const bm = bookmarks[index];
+            const bm = getCurrentBookmarks()[index];
             document.getElementById('bm-modal-title').innerText = "编辑快捷方式";
             document.getElementById('bm-name').value = bm.name;
             document.getElementById('bm-url').value = bm.url;
@@ -482,22 +522,24 @@
             const url = document.getElementById('bm-url').value;
             if(name && url) {
                 const formattedUrl = url.startsWith('http') ? url : 'https://' + url;
+                const bms = getCurrentBookmarks();
                 if (editingIndex > -1) {
-                    bookmarks[editingIndex] = { ...bookmarks[editingIndex], name, url: formattedUrl };
+                    bms[editingIndex] = { ...bms[editingIndex], name, url: formattedUrl };
                 } else {
-                    bookmarks.push({ name, url: formattedUrl, icon: 'globe' });
+                    bms.push({ name, url: formattedUrl, icon: 'globe' });
                 }
-                localStorage.setItem('bookmarks_v7', JSON.stringify(bookmarks));
+                saveGroups();
                 renderBookmarks();
                 closeBookmarkModal();
             }
         }
 
         function deleteBookmark(index) {
-            bookmarks.splice(index, 1);
-            localStorage.setItem('bookmarks_v7', JSON.stringify(bookmarks));
+            const bms = getCurrentBookmarks();
+            bms.splice(index, 1);
+            saveGroups();
             // 如果删除了之后当前页空了，且不是第一页，则跳到前一页
-            const totalPages = Math.ceil((bookmarks.length + 1) / 6);
+            const totalPages = Math.ceil((bms.length + 1) / 6);
             if (currentPage >= totalPages && currentPage > 0) currentPage--;
             renderBookmarks();
         }
@@ -510,7 +552,7 @@
         }
 
         function nextPage() {
-            const totalPages = Math.ceil((bookmarks.length + 1) / 6);
+            const totalPages = Math.ceil((getCurrentBookmarks().length + 1) / 6);
             if (currentPage < totalPages - 1) {
                 currentPage++;
                 renderBookmarks();
