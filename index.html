@@ -252,7 +252,7 @@
             <!-- 左分栏：常用网站 -->
             <div class="apple-glass rounded-[2.5rem] p-8 flex flex-col overflow-hidden group/shortcuts">
                 <div class="flex justify-between items-center mb-6">
-                    <div class="flex items-center gap-3 opacity-30 text-[18px] uppercase tracking-[0.4em] font-[200]">
+                    <div class="flex items-center gap-3 opacity-30 text-[18px] uppercase tracking-[0.4em] font-normal">
                         <i data-lucide="layout-grid" class="w-6 h-6"></i> 快捷方式
                     </div>
                     <div class="flex gap-2 opacity-0 group-hover/shortcuts:opacity-30 transition-opacity">
@@ -270,8 +270,8 @@
             <div class="apple-glass rounded-[2.5rem] p-8 flex flex-col overflow-hidden relative">
                 <div class="flex items-center justify-between mb-6">
                     <div class="flex gap-4">
-                        <button onclick="switchTab('note')" id="tab-note" class="text-[18px] uppercase tracking-[0.4em] font-[200] transition-all opacity-100">笔记</button>
-                        <button onclick="switchTab('todo')" id="tab-todo" class="text-[18px] uppercase tracking-[0.4em] font-[200] transition-all opacity-30">待办</button>
+                        <button onclick="switchTab('note')" id="tab-note" class="text-[18px] uppercase tracking-[0.4em] font-normal transition-all opacity-100">笔记</button>
+                        <button onclick="switchTab('todo')" id="tab-todo" class="text-[18px] uppercase tracking-[0.4em] font-normal transition-all opacity-30">待办</button>
                     </div>
                     <div id="todo-add-btn" class="hidden">
                         <button onclick="addTodo()" class="opacity-30 hover:opacity-100 transition-all"><i data-lucide="plus" class="w-4 h-4"></i></button>
@@ -306,8 +306,8 @@
 
             <!-- 右分栏：桌面宠物 -->
             <div class="apple-glass rounded-[2.5rem] p-8 flex flex-col items-center justify-center overflow-hidden">
-                <div class="flex items-center gap-3 mb-6 opacity-30 text-[18px] uppercase tracking-[0.4em] font-[200] self-start">
-                    <i data-lucide="heart" class="w-6 h-6"></i> 伙伴
+                <div class="flex items-center gap-3 mb-6 opacity-30 text-[18px] uppercase tracking-[0.4em] font-normal self-start">
+                    <i data-lucide="heart" class="w-6 h-6"></i> 宠物
                 </div>
                 <div class="flex-1 flex flex-col items-center justify-center">
                     <div id="pet" class="text-6xl mb-4 transition-all duration-500 cursor-pointer hover:scale-110">🐱</div>
