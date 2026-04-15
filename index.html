@@ -93,14 +93,39 @@
         }
         .animate-page { animation: fadeIn 1.5s cubic-bezier(0.16, 1, 0.3, 1); }
 
-        /* 搜索框内的原生下拉框美化 */
-        #engine-select {
-            appearance: none;
-            -webkit-appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 1.5rem center;
-            padding-right: 3rem;
+        /* 搜索框美化 */
+        .search-container {
+            position: relative;
+        }
+        .engine-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 0.75rem;
+            width: 10rem;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(10px);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 60;
+        }
+        .engine-dropdown.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        .engine-option {
+            width: 100%;
+            text-align: left;
+            padding: 0.75rem 1.5rem;
+            font-size: 10px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            transition: background 0.2s;
+        }
+        .engine-option:hover {
+            background: rgba(255, 255, 255, 0.1);
         }
 
         /* 统一输入框与按钮样式 */
@@ -198,13 +223,19 @@
                 </div>
 
                 <!-- 搜索框 -->
-                <div class="apple-glass rounded-full p-2.5 flex items-center w-full focus-within:ring-[12px] ring-white/5 transition-all duration-700 shadow-2xl">
-                    <div class="relative flex items-center">
-                        <select id="engine-select" class="bg-transparent border-none text-[10px] px-8 outline-none cursor-pointer border-r border-white/20 appearance-none font-black uppercase tracking-[0.2em] text-center text-white">
-                            <option value="baidu" class="bg-zinc-900 text-white">Baidu</option>
-                            <option value="google" class="bg-zinc-900 text-white">Google</option>
-                            <option value="bing" class="bg-zinc-900 text-white">Bing</option>
-                        </select>
+                <div class="apple-glass rounded-full p-2.5 flex items-center w-full focus-within:ring-[12px] ring-white/5 transition-all duration-700 shadow-2xl search-container">
+                    <div class="relative">
+                        <button id="engine-current" onclick="toggleEngineDropdown(event)" class="text-[10px] px-8 py-3 outline-none cursor-pointer border-r border-white/20 font-black uppercase tracking-[0.2em] text-center text-white flex items-center gap-2 hover:bg-white/5 rounded-l-full transition-colors">
+                            <span id="current-engine-name">Baidu</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 opacity-50"></i>
+                        </button>
+                        
+                        <!-- 自定义下拉菜单 -->
+                        <div id="engine-dropdown" class="engine-dropdown apple-glass rounded-[1.8rem] overflow-hidden py-2">
+                            <button onclick="setSearchEngine('baidu')" class="engine-option">Baidu</button>
+                            <button onclick="setSearchEngine('google')" class="engine-option">Google</button>
+                            <button onclick="setSearchEngine('bing')" class="engine-option">Bing</button>
+                        </div>
                     </div>
                     <input type="text" id="search-input" placeholder="Discovery starts here..." 
                            class="flex-1 bg-transparent border-none outline-none px-6 text-xl placeholder:text-white/20 font-light text-white selection:bg-white/30"
@@ -625,16 +656,34 @@
         }
         fetchHitokoto();
 
+        let currentEngine = 'baidu';
+
+        function toggleEngineDropdown(e) {
+            e.stopPropagation();
+            document.getElementById('engine-dropdown').classList.toggle('active');
+        }
+
+        function setSearchEngine(engine) {
+            currentEngine = engine;
+            const names = { baidu: 'Baidu', google: 'Google', bing: 'Bing' };
+            document.getElementById('current-engine-name').innerText = names[engine];
+            document.getElementById('engine-dropdown').classList.remove('active');
+        }
+
+        // 点击其他地方关闭下拉菜单
+        document.addEventListener('click', () => {
+            document.getElementById('engine-dropdown').classList.remove('active');
+        });
+
         function performSearch() {
             const q = document.getElementById('search-input').value.trim();
             if(!q) return;
-            const engine = document.getElementById('engine-select').value;
             const urls = {
                 baidu: `https://www.baidu.com/s?wd=${encodeURIComponent(q)}`,
                 google: `https://www.google.com/search?q=${encodeURIComponent(q)}`,
                 bing: `https://www.bing.com/search?q=${encodeURIComponent(q)}`
             };
-            window.open(urls[engine], '_blank');
+            window.open(urls[currentEngine], '_blank');
         }
 
         let pomoTime = 25 * 60;
