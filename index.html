@@ -93,10 +93,47 @@
         }
         .animate-page { animation: fadeIn 1.5s cubic-bezier(0.16, 1, 0.3, 1); }
 
-        #hitokoto {
-            transition: opacity 0.8s ease;
+        /* 搜索框内的原生下拉框美化 */
+        #engine-select {
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1.5rem center;
+            padding-right: 3rem;
         }
-    </style>
+
+        /* 统一输入框与按钮样式 */
+        input, select, textarea {
+            transition: all 0.3s ease;
+        }
+        
+        .modal-content {
+            animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes modalPop {
+            from { opacity: 0; transform: scale(0.95) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* 自定义 Todo 输入框样式 */
+        .todo-input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .apple-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            padding: 0.8rem 1.2rem;
+            outline: none;
+            width: 100%;
+        }
+        .apple-input:focus {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
 </head>
 <body class="text-white animate-page">
 
@@ -160,14 +197,16 @@
                 </div>
 
                 <!-- 搜索框 -->
-                <div class="apple-glass rounded-full p-2.5 flex items-center w-full focus-within:ring-[12px] ring-white/5 transition-all duration-700">
-                    <select id="engine-select" class="bg-transparent border-none text-[10px] px-8 outline-none cursor-pointer border-r border-white/20 appearance-none font-black uppercase tracking-[0.2em] text-center">
-                        <option value="baidu" class="text-black">Baidu</option>
-                        <option value="google" class="text-black">Google</option>
-                        <option value="bing" class="text-black">Bing</option>
-                    </select>
+                <div class="apple-glass rounded-full p-2.5 flex items-center w-full focus-within:ring-[12px] ring-white/5 transition-all duration-700 shadow-2xl">
+                    <div class="relative flex items-center">
+                        <select id="engine-select" class="bg-transparent border-none text-[10px] px-8 outline-none cursor-pointer border-r border-white/20 appearance-none font-black uppercase tracking-[0.2em] text-center text-white">
+                            <option value="baidu" class="bg-zinc-900 text-white">Baidu</option>
+                            <option value="google" class="bg-zinc-900 text-white">Google</option>
+                            <option value="bing" class="bg-zinc-900 text-white">Bing</option>
+                        </select>
+                    </div>
                     <input type="text" id="search-input" placeholder="Discovery starts here..." 
-                           class="flex-1 bg-transparent border-none outline-none px-6 text-xl placeholder:text-white/20 font-light"
+                           class="flex-1 bg-transparent border-none outline-none px-6 text-xl placeholder:text-white/20 font-light text-white selection:bg-white/30"
                            onkeydown="if(event.key === 'Enter') performSearch()">
                     <button onclick="performSearch()" class="bg-white/10 hover:bg-white/30 p-5 rounded-full transition-all">
                         <i data-lucide="search" class="w-6 h-6"></i>
@@ -259,14 +298,33 @@
     </div>
 
     <div id="bookmark-modal" class="modal">
-        <div class="apple-glass p-12 rounded-[4rem] max-w-md w-full relative">
+        <div class="apple-glass p-12 rounded-[4rem] max-w-md w-full relative modal-content">
             <h3 id="bm-modal-title" class="text-2xl font-light mb-10 tracking-tight">添加快捷方式</h3>
             <div class="space-y-6">
-                <input type="text" id="bm-name" class="w-full bg-white/5 border border-white/20 rounded-2xl p-5 outline-none font-light" placeholder="名称">
-                <input type="text" id="bm-url" class="w-full bg-white/5 border border-white/20 rounded-2xl p-5 outline-none font-light" placeholder="地址 (https://...)">
-                <div class="flex gap-4">
-                    <button onclick="closeBookmarkModal()" class="flex-1 border border-white/20 py-4 rounded-2xl opacity-50">取消</button>
-                    <button id="bm-save-btn" onclick="saveBookmark()" class="flex-1 bg-white text-black font-black py-4 rounded-2xl">保存</button>
+                <div class="space-y-2">
+                    <label class="text-[9px] uppercase tracking-[0.3em] font-black opacity-30 ml-4">名称</label>
+                    <input type="text" id="bm-name" class="apple-input font-light" placeholder="例如: GitHub">
+                </div>
+                <div class="space-y-2">
+                    <label class="text-[9px] uppercase tracking-[0.3em] font-black opacity-30 ml-4">链接地址</label>
+                    <input type="text" id="bm-url" class="apple-input font-light" placeholder="https://...">
+                </div>
+                <div class="flex gap-4 pt-4">
+                    <button onclick="closeBookmarkModal()" class="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 py-5 rounded-[2rem] transition-all text-[10px] uppercase tracking-widest font-black opacity-50 hover:opacity-100">取消</button>
+                    <button id="bm-save-btn" onclick="saveBookmark()" class="flex-1 bg-white text-black font-black py-5 rounded-[2rem] hover:scale-[1.02] active:scale-[0.98] transition-all text-[10px] uppercase tracking-widest">确认保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="todo-modal" class="modal">
+        <div class="apple-glass p-12 rounded-[4rem] max-w-md w-full relative modal-content">
+            <h3 class="text-2xl font-light mb-10 tracking-tight">添加待办事项</h3>
+            <div class="space-y-6">
+                <input type="text" id="todo-input" class="apple-input font-light" placeholder="输入任务内容...">
+                <div class="flex gap-4 pt-4">
+                    <button onclick="toggleModal('todo-modal')" class="flex-1 bg-white/5 border border-white/10 py-5 rounded-[2rem] text-[10px] uppercase tracking-widest font-black opacity-50">取消</button>
+                    <button onclick="confirmAddTodo()" class="flex-1 bg-white text-black font-black py-5 rounded-[2rem] text-[10px] uppercase tracking-widest">添加任务</button>
                 </div>
             </div>
         </div>
@@ -429,28 +487,41 @@
 
         function renderTodos() {
             const list = document.getElementById('todo-list');
-            list.innerHTML = todos.map((t, index) => `
-                <div class="todo-item ${t.completed ? 'completed' : ''} flex items-center justify-between gap-4 group/item">
-                    <div class="flex items-center gap-4 cursor-pointer" onclick="toggleTodo(${index})">
-                        <div class="w-5 h-5 rounded-md border border-white/30 flex items-center justify-center transition-all ${t.completed ? 'bg-white/40 border-transparent' : ''}">
-                            ${t.completed ? '<i data-lucide="check" class="w-3 h-3"></i>' : ''}
+            list.innerHTML = todos.length ? todos.map((t, index) => `
+                <div class="todo-item ${t.completed ? 'completed' : ''} flex items-center justify-between gap-4 group/item p-4 rounded-2xl hover:bg-white/5 transition-all">
+                    <div class="flex items-center gap-4 cursor-pointer flex-1" onclick="toggleTodo(${index})">
+                        <div class="w-6 h-6 rounded-full border border-white/20 flex items-center justify-center transition-all ${t.completed ? 'bg-emerald-500 border-transparent shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'group-hover/item:border-white/50'}">
+                            ${t.completed ? '<i data-lucide="check" class="w-3 h-3 text-white"></i>' : ''}
                         </div>
-                        <span class="text-sm font-light tracking-wide">${t.text}</span>
+                        <span class="text-sm font-light tracking-wide transition-all ${t.completed ? 'opacity-30 line-through' : 'opacity-80'}">${t.text}</span>
                     </div>
-                    <button onclick="deleteTodo(${index})" class="opacity-0 group-hover/item:opacity-40 hover:text-red-400 transition-all">
+                    <button onclick="deleteTodo(${index})" class="opacity-0 group-hover/item:opacity-40 hover:text-red-400 transition-all p-2">
                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
                 </div>
-            `).join('');
+            `).join('') : `
+                <div class="h-full flex flex-col items-center justify-center opacity-10 py-12">
+                    <i data-lucide="list-checks" class="w-12 h-12 mb-4"></i>
+                    <p class="text-[10px] uppercase tracking-widest font-black">Empty List</p>
+                </div>
+            `;
             lucide.createIcons();
         }
 
         function addTodo() {
-            const text = prompt("新任务:");
+            toggleModal('todo-modal');
+            setTimeout(() => document.getElementById('todo-input').focus(), 100);
+        }
+
+        function confirmAddTodo() {
+            const input = document.getElementById('todo-input');
+            const text = input.value.trim();
             if(text) {
                 todos.push({ id: Date.now(), text, completed: false });
                 localStorage.setItem('todos_v7', JSON.stringify(todos));
                 renderTodos();
+                input.value = '';
+                toggleModal('todo-modal');
             }
         }
 
