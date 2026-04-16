@@ -20,17 +20,27 @@
         }
 
         /* 极致毛玻璃效果 - 增加了饱和度和模糊度，更有苹果味 */
+        /* 毛玻璃效果：blur 半径与面板 gap 的关系决定了兄弟采样污染程度。
+           blur 35px + gap 32px 时，相邻面板会被采样到边缘 → hover 重绘时出现"白/蓝框"伪影。
+           选择 blur 20px（< gap 32px），物理上切断跨面板采样。 */
         .apple-glass {
-            background: rgba(255, 255, 255, 0.12);
-            backdrop-filter: blur(35px) saturate(200%);
-            -webkit-backdrop-filter: blur(35px) saturate(200%);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 15px 50px -10px rgba(0, 0, 0, 0.4);
-            /* 隔离合成层：修复 Chrome 多 backdrop-filter 面板动画时跨面板渲染串扰的蓝色方块 */
+            background-color: rgba(255, 255, 255, 0.12);
+            background-clip: padding-box;
+            backdrop-filter: blur(24px) saturate(200%);
+            -webkit-backdrop-filter: blur(24px) saturate(200%);
+            box-shadow:
+                inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+                0 15px 50px -10px rgba(0, 0, 0, 0.4);
+        }
+        /* 外层分组做 stacking context 隔离顶栏与面板区 */
+        .glass-group {
             isolation: isolate;
-            transform: translate3d(0, 0, 0);
-            backface-visibility: hidden;
-            -webkit-backface-visibility: hidden;
+            position: relative;
+        }
+        /* 下拉淡入时让 transform 常驻 GPU 合成层，subpixel 位置不 snap → 消除过渡结束瞬间第一行文字的跳动。
+           选择器匹配所有带 opacity-0 类的 apple-glass（即顶栏下拉），不影响主面板。
+           只用 transform，不用 backdrop-filter，避免断开 backdrop 采样。 */
+        .apple-glass[class*="opacity-0"] {
             will-change: transform;
         }
 
@@ -55,7 +65,9 @@
         /* 仅让弹出的面板带深色半透明底，页面其余区域不遮罩 */
         .modal .apple-glass {
             background: rgba(0, 0, 0, 0.55);
-            border-color: rgba(255, 255, 255, 0.12);
+            box-shadow:
+                inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+                0 15px 50px -10px rgba(0, 0, 0, 0.4);
         }
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -376,7 +388,7 @@
 
             <!-- 顶部：设置按钮 -->
             <div class="flex justify-end items-start h-20">
-                <div class="flex gap-4">
+                <div class="flex gap-4 glass-group">
                     <!-- 番茄钟 -->
                     <div class="relative group/pomo">
                         <button id="pomodoro-btn" class="apple-glass p-5 rounded-full hover:bg-white/30 transition-all flex items-center justify-center" title="番茄钟"><i data-lucide="timer" class="w-6 h-6"></i></button>
@@ -560,7 +572,7 @@
         </div>
 
         <!-- 下方分栏区域 (固定高度占比) -->
-        <div id="panels-container" class="h-[45%] flex gap-8 mt-4 overflow-hidden pb-4">
+        <div id="panels-container" class="h-[45%] flex gap-10 mt-4 overflow-hidden pb-4 glass-group">
             <!-- 快捷方式面板 -->
             <div id="panel-shortcuts" class="apple-glass rounded-[2.5rem] p-6 lg:p-8 flex flex-col overflow-hidden group/shortcuts flex-1 min-w-0">
                 <div class="flex items-center justify-between mb-4">
