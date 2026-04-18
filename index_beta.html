@@ -6,8 +6,8 @@
     <title>Ayu Tab</title>
     <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 Lucide 图标库 -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- 引入 Lucide 图标库；固定到 0.294.0，新版本移除了 github 等品牌图标 -->
+    <script src="https://unpkg.com/lucide@0.294.0"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;600&display=swap');
         
@@ -207,7 +207,7 @@
         .pet-wrap.dragging { transition: none !important; cursor: grabbing; z-index: 9999; }
         /* 用 absolute 而非 fixed，避免被祖先 backdrop-filter / transform 劫持为包含块导致拖拽时定位错乱 */
         .pet-wrap.pinned { position: absolute !important; z-index: 9998; }
-        .pet-wrap { transition: left 4.8s cubic-bezier(0.45, 0, 0.25, 1), top 4.8s cubic-bezier(0.45, 0, 0.25, 1); }
+        .pet-wrap { transition: left 4.8s cubic-bezier(0.45, 0, 0.25, 1), top 4.8s cubic-bezier(0.45, 0, 0.25, 1), opacity 0.25s ease; }
         .pet-onboard-card.selected { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.4); transform: translateY(-2px); }
         .pet-onboard-svg img { width: 100%; height: 100%; display: block; object-fit: contain; }
 
@@ -216,6 +216,14 @@
         .pet-mood.show { opacity: 1; }
         .pet-mood .mood-heart { width: 12px; height: 12px; color: #f472b6; }
         .pet-mood .mood-heart.empty { color: rgba(244, 114, 182, 0.25); }
+        /* 名字：宠物下方 */
+        .pet-name {
+            position: absolute; top: 104px; left: 50%; transform: translateX(-50%);
+            font-size: 17px; font-weight: 600; letter-spacing: 0.08em; color: rgba(255,255,255,0.92);
+            text-shadow: 0 1px 3px rgba(0,0,0,0.45);
+            white-space: nowrap; opacity: 0; transition: opacity 0.5s ease; pointer-events: none; z-index: 5;
+        }
+        .pet-name.show { opacity: 1; }
 
         /* 心情指示装饰（星星 / 乌云） */
         .pet-mood-fx { position: absolute; left: 50%; top: -6px; transform: translateX(-50%); pointer-events: none; opacity: 0; transition: opacity 0.8s ease; z-index: 4; width: 80px; height: 40px; }
@@ -378,6 +386,24 @@
             50%      { box-shadow: 0 0 18px 6px rgba(255, 255, 255, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.6); transform: scale(1.06); }
         }
         #pet-nav-btn.breath { animation: petNavBreath 2.2s ease-in-out infinite; }
+        /* 初始化菜单项呼吸：下拉打开后引导用户完成初始化 */
+        @keyframes petNavInitBreath {
+            0%, 100% { background: rgba(255, 255, 255, 0); }
+            50%      { background: rgba(255, 255, 255, 0.14); }
+        }
+        #pet-nav-init-btn.breath { animation: petNavInitBreath 2.2s ease-in-out infinite; }
+        /* hover 右上角宠物导航时，气泡淡出让位下拉菜单，移出后恢复 */
+        #pet-hint { transition: opacity 0.25s ease, transform 0.25s ease; }
+        body:has(#pet-nav-wrap:hover) #pet-hint {
+            opacity: 0;
+            transform: translateY(-4px);
+            pointer-events: none;
+        }
+        /* hover 右上角任意按钮时，宠物淡出让位下拉菜单（顶栏 z-30 < 宠物 z-40，必须把宠物隐起来才能让下拉可见） */
+        body:has(#top-nav-buttons:hover) #pet {
+            opacity: 0;
+            pointer-events: none;
+        }
         /* 菜单里的开关样式：同色调毛玻璃，保持极简 */
         .pet-nav-switch {
             position: relative; display: inline-block; width: 32px; height: 18px;
@@ -528,8 +554,8 @@
         <div id="main-container" class="flex flex-col p-12 relative z-10">
 
             <!-- 顶部：设置按钮 -->
-            <div class="flex justify-end items-start h-20">
-                <div class="flex gap-4 glass-group">
+            <div class="flex justify-end items-start h-20 relative z-30">
+                <div id="top-nav-buttons" class="flex gap-4 glass-group">
                     <!-- 番茄钟 -->
                     <div class="relative group/pomo">
                         <button id="pomodoro-btn" class="apple-glass p-5 rounded-full hover:bg-white/20 transition-all flex items-center justify-center" title="番茄钟"><i data-lucide="timer" class="w-6 h-6"></i></button>
@@ -623,6 +649,9 @@
                     </button>
                     <div id="pet-nav-dropdown" class="absolute right-0 mt-3 py-3 w-56 apple-glass rounded-[1.8rem] opacity-0 invisible group-hover/pet-nav:opacity-100 group-hover/pet-nav:visible transition-all duration-500 z-50 transform translate-y-2 group-hover/pet-nav:translate-y-0">
                         <div class="px-6 py-2 mb-1 text-xs opacity-60 font-black tracking-[0.2em] uppercase">宠物</div>
+                        <button id="pet-nav-init-btn" onclick="showPetOnboard()" class="w-full text-left px-6 py-3 text-xs uppercase tracking-widest font-bold hover:bg-white/10 transition-colors flex items-center gap-3">
+                            <i data-lucide="sparkles" class="w-4 h-4 opacity-50"></i> <span id="pet-nav-init-label">初始化</span>
+                        </button>
                         <button onclick="togglePetActive(); refreshPetNavUI();" class="w-full text-left px-6 py-3 text-xs uppercase tracking-widest font-bold hover:bg-white/10 transition-colors flex items-center justify-between">
                             <span class="flex items-center gap-3"><i data-lucide="zap" class="w-4 h-4 opacity-50"></i> <span id="pet-nav-active-label">活跃</span></span>
                             <span id="pet-nav-active-switch" class="pet-nav-switch"><span class="pet-nav-switch-dot"></span></span>
@@ -630,9 +659,6 @@
                         <button onclick="togglePetVisibility();" class="w-full text-left px-6 py-3 text-xs uppercase tracking-widest font-bold hover:bg-white/10 transition-colors flex items-center justify-between">
                             <span class="flex items-center gap-3"><i data-lucide="eye" class="w-4 h-4 opacity-50"></i> <span id="pet-nav-visible-label">显示</span></span>
                             <span id="pet-nav-visible-switch" class="pet-nav-switch"><span class="pet-nav-switch-dot"></span></span>
-                        </button>
-                        <button onclick="showPetOnboard()" class="w-full text-left px-6 py-3 text-xs uppercase tracking-widest font-bold hover:bg-white/10 transition-colors flex items-center gap-3">
-                            <i data-lucide="sparkles" class="w-4 h-4 opacity-50"></i> <span id="pet-nav-init-label">初始化</span>
                         </button>
                     </div>
                 </div>
@@ -674,12 +700,29 @@
             </div>
         </div>
 
+        <!-- 首次引导：对话气泡 + 尾巴为一个 SVG 形状，尾巴在顶部朝右上指向宠物图标 -->
+        <div id="pet-hint" class="hidden absolute top-[122px] right-[193px] z-20" style="width:170px;height:64px;">
+            <svg class="absolute inset-0 w-full h-full" viewBox="0 0 170 64" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M 15 14 H 108 L 118 0 L 128 14 H 155 Q 169 14 169 28 V 50 Q 169 62 155 62 H 15 Q 1 62 1 50 V 28 Q 1 14 15 14 Z"
+                      fill="rgba(255,255,255,0.14)"
+                      stroke="rgba(255,255,255,0.28)"
+                      stroke-width="1"
+                      stroke-linejoin="round"/>
+            </svg>
+            <div class="relative h-full flex items-center justify-between pl-4 pr-2" style="padding-top:14px;">
+                <span class="text-sm font-medium tracking-wide text-white select-none">开启宠物功能</span>
+                <button onclick="dismissPetHint()" title="关闭提示" class="opacity-75 hover:opacity-100 p-1.5 rounded-full hover:bg-white/10 transition-all">
+                    <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </div>
+
         <!-- 中间：时钟、天气与搜索 -->
         <div class="flex flex-col items-center justify-center flex-1">
-            <div class="w-full max-w-2xl flex flex-col items-center">
+            <div class="w-full max-w-[800px] flex flex-col items-center">
 
                 <!-- 时间与天气容器 -->
-                <div class="flex flex-col items-center mb-2 animate-page">
+                <div class="flex flex-col items-center mb-2 -mt-[50px] animate-page">
                     <div id="time" class="text-7xl lg:text-8xl font-extralight tracking-tighter mb-2">00:00</div>
                     <div class="flex items-center gap-6 mb-10">
                         <div id="date" class="text-xs lg:text-sm tracking-[0.5em] uppercase font-bold border-r border-white/20 pr-6 text-white">JAN 01, MONDAY</div>
@@ -690,7 +733,7 @@
                     </div>
 
                     <!-- 每日格言 -->
-                    <div id="hitokoto-container" class="max-w-xl text-center px-4 mb-8 h-14 flex flex-col justify-center relative group/hitokoto">
+                    <div id="hitokoto-container" class="max-w-xl text-center px-4 mb-16 -mt-[20px] h-14 flex flex-col justify-center relative group/hitokoto">
                         <div class="absolute -top-1 left-full ml-2 flex items-center gap-1 opacity-0 group-hover/hitokoto:opacity-100 transition-opacity z-10">
                             <div class="relative" id="hitokoto-src-wrap">
                                 <button onclick="toggleHitokotoSourceDropdown(event)" title="切换来源" class="p-1.5 rounded-full hover:bg-white/15 transition-all">
@@ -756,7 +799,7 @@
         </div>
 
         <!-- 下方分栏区域 (固定高度占比) -->
-        <div id="panels-container" class="h-[45%] flex gap-10 mt-4 overflow-hidden pb-4 glass-group">
+        <div id="panels-container" class="h-[45%] flex gap-10 mt-16 overflow-hidden pb-4 px-[72px] glass-group">
             <!-- 快捷方式面板 -->
             <div id="panel-shortcuts" class="apple-glass rounded-[2.5rem] p-6 lg:p-8 flex flex-col overflow-hidden group/shortcuts flex-1 min-w-0">
                 <div class="flex items-center justify-between mb-4">
@@ -855,24 +898,13 @@
 
         </div>
 
-        <!-- 宠物容器：独立于分栏布局，挂在 main-container 内保持与 UI 一致的等比缩放。
-             安静（quiet）模式下：宠物在 #pet-main 小范围活动；活跃（active）模式下：宠物被挂到 #main-container 全屏游走。 -->
-        <div id="pet-home" class="absolute bottom-10 right-10 w-[280px] h-[180px] z-30 group/pet pointer-events-none">
-            <!-- 控制按钮：悬停时显示 -->
-            <div class="absolute -top-10 right-0 flex items-center gap-3 opacity-0 group-hover/pet:opacity-80 transition-opacity pointer-events-auto">
-                <button onclick="openPetResetConfirm()" title="重置宠物" class="hover:!opacity-100 transition-all">
-                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-                </button>
-            </div>
-            <!-- 已选择宠物后显示 —— 宠物在此区域内小范围活动 -->
-            <div id="pet-main" class="hidden absolute inset-0 pointer-events-auto">
-                <div id="pet" class="pet-wrap state-idle absolute" data-type="cat" data-state="idle" style="left:0; top:0;">
-                    <div id="pet-mood" class="pet-mood"></div>
-                    <div id="pet-mood-fx" class="pet-mood-fx"></div>
-                    <div id="pet-zz" class="pet-zz">z<sup style="font-size:9px">z</sup></div>
-                    <div id="pet-food" class="pet-food"></div>
-                </div>
-            </div>
+        <!-- 宠物：直接挂在 main-container 内，随 UI 等比缩放。活跃 / 安静均在全屏范围活动，仅步长与目标选点不同。 -->
+        <div id="pet" class="pet-wrap state-idle absolute pointer-events-auto" data-type="cat" data-state="idle" style="left:0; top:0; z-index:40;">
+            <div id="pet-mood" class="pet-mood"></div>
+            <div id="pet-name" class="pet-name"></div>
+            <div id="pet-mood-fx" class="pet-mood-fx"></div>
+            <div id="pet-zz" class="pet-zz">z<sup style="font-size:9px">z</sup></div>
+            <div id="pet-food" class="pet-food"></div>
         </div>
     </div>
     </div>
@@ -989,19 +1021,6 @@
         <button onclick="changeTodoPriority('high')" class="w-full text-left px-3 py-2 text-[11px] uppercase tracking-[0.08em] font-bold rounded-xl hover:bg-white/10 transition-all flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>高</button>
         <button onclick="changeTodoPriority('medium')" class="w-full text-left px-3 py-2 text-[11px] uppercase tracking-[0.08em] font-bold rounded-xl hover:bg-white/10 transition-all flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>中</button>
         <button onclick="changeTodoPriority('low')" class="w-full text-left px-3 py-2 text-[11px] uppercase tracking-[0.08em] font-bold rounded-xl hover:bg-white/10 transition-all flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>低</button>
-    </div>
-
-    <!-- 重置宠物确认 modal -->
-    <div id="pet-reset-modal" class="modal">
-        <div class="apple-glass p-12 rounded-[4rem] max-w-sm w-full relative modal-content">
-            <button onclick="toggleModal('pet-reset-modal')" class="modal-close"><i data-lucide="x"></i></button>
-            <h3 class="text-2xl font-light mb-4 tracking-tight">重置宠物</h3>
-            <p class="text-sm opacity-50 mb-8 leading-relaxed font-light">确定要重新选择宠物吗？当前名字和种类会被清除。</p>
-            <div class="flex gap-4">
-                <button onclick="toggleModal('pet-reset-modal')" class="flex-1 bg-white/5 border border-white/10 py-5 rounded-[2rem] text-[10px] uppercase tracking-widest font-black opacity-50">取消</button>
-                <button onclick="executePetReset()" class="flex-1 bg-red-500/80 hover:bg-red-500 text-white font-black py-5 rounded-[2rem] text-[10px] uppercase tracking-widest transition-all">确认重置</button>
-            </div>
-        </div>
     </div>
 
     <!-- 删除笔记确认 modal -->
@@ -2113,19 +2132,43 @@
         setInterval(updateClock, 1000); 
         updateClock();
 
+        // 坐标缓存：file:// 协议下 Chrome 不持久化定位权限，每次都要弹窗授权。
+        // 首次成功后缓存坐标，7 天内直接复用，避免反复打扰。
+        const WEATHER_COORDS_KEY = 'weather.coords';
+        const WEATHER_COORDS_TTL = 7 * 24 * 3600 * 1000;
+        function loadWeatherCoords() {
+            try {
+                const raw = localStorage.getItem(WEATHER_COORDS_KEY);
+                if (!raw) return null;
+                const obj = JSON.parse(raw);
+                if (!obj || typeof obj.lat !== 'number' || typeof obj.lon !== 'number') return null;
+                if (Date.now() - (obj.ts || 0) > WEATHER_COORDS_TTL) return null;
+                return obj;
+            } catch (_) { return null; }
+        }
+        function saveWeatherCoords(lat, lon) {
+            localStorage.setItem(WEATHER_COORDS_KEY, JSON.stringify({ lat, lon, ts: Date.now() }));
+        }
+        async function renderWeatherAt(lat, lon) {
+            const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
+            const data = await res.json();
+            const weather = data.current_weather;
+            document.getElementById('weather-temp').innerText = `${Math.round(weather.temperature)}°C`;
+            document.getElementById('weather-desc').innerText = getWeatherDesc(weather.weathercode);
+        }
         async function fetchWeather() {
             try {
-                // 使用浏览器地理位置，如果失败则回退到北京
+                const cached = loadWeatherCoords();
+                if (cached) {
+                    await renderWeatherAt(cached.lat, cached.lon);
+                    return;
+                }
                 navigator.geolocation.getCurrentPosition(async (pos) => {
                     const lat = pos.coords.latitude;
                     const lon = pos.coords.longitude;
-                    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
-                    const data = await res.json();
-                    const weather = data.current_weather;
-                    document.getElementById('weather-temp').innerText = `${Math.round(weather.temperature)}°C`;
-                    document.getElementById('weather-desc').innerText = getWeatherDesc(weather.weathercode);
+                    saveWeatherCoords(lat, lon);
+                    await renderWeatherAt(lat, lon);
                 }, () => {
-                    // 回退方案
                     document.getElementById('weather-desc').innerText = "需要定位权限";
                 });
             } catch (e) {
@@ -2512,7 +2555,7 @@
             lucide.createIcons();
         })();
 
-        ['donate-modal', 'bookmark-modal', 'todo-modal', 'settings-modal', 'group-name-modal', 'delete-group-modal', 'delete-note-modal', 'pet-reset-modal'].forEach((id) => {
+        ['donate-modal', 'bookmark-modal', 'todo-modal', 'settings-modal', 'group-name-modal', 'delete-group-modal', 'delete-note-modal'].forEach((id) => {
             const modal = document.getElementById(id);
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) toggleModal(id);
@@ -3159,7 +3202,9 @@
             sleeping: 'sleeping',
             eating: 'eating',
             dragged: 'dragged',
-            yawning: 'yawning'
+            yawning: 'sleeping', // 无 yawning.png：复用 sleeping 视觉，与后续入睡状态衔接
+            sitting: 'sitting',
+            walking: 'walking 1' // 移动起手帧；walking 2 由 startWalkingAnimation 在 src 里直接交替
         };
         const PET_IMAGE_STATES = Object.keys(PET_STATE_IMAGE);
         function petImagePath(type, state) {
@@ -3172,6 +3217,8 @@
         }
         function preloadPetImages(type) {
             PET_IMAGE_STATES.forEach(s => { const img = new Image(); img.src = petImagePath(type, s); });
+            // walking 第二帧也预载（不在 PET_STATE_IMAGE 里因为它不是独立状态）
+            const w2 = new Image(); w2.src = `assets/pets/${type}/walking 2.png`;
         }
         const PET_ALL_STATES_ARR = PET_IMAGE_STATES;
         function setPetState(state) {
@@ -3181,31 +3228,26 @@
             if (el.dataset.state === target) return;
             const img = el.querySelector('.pet-img');
             const type = el.dataset.type || localStorage.getItem('pet.type') || 'cat';
-            // 平滑过渡：先淡掉当前图片，切换 src 后淡回来
-            if (img) img.style.opacity = '0';
-            clearTimeout(el._stateSwap);
-            el._stateSwap = setTimeout(() => {
-                PET_ALL_STATES_ARR.forEach(s => el.classList.remove('state-' + s));
-                el.classList.add('state-' + target);
-                el.dataset.state = target;
-                if (img) {
-                    img.src = petImagePath(type, target);
-                    img.style.opacity = '1';
-                }
-                const zz = document.getElementById('pet-zz');
-                if (zz) zz.classList.toggle('show', target === 'sleeping');
-            }, 80);
+            // 直接 src 替换 → 所有素材已预载 → 缓存命中下零闪烁
+            PET_ALL_STATES_ARR.forEach(s => el.classList.remove('state-' + s));
+            el.classList.add('state-' + target);
+            el.dataset.state = target;
+            if (img) img.src = petImagePath(type, target);
+            const zz = document.getElementById('pet-zz');
+            if (zz) zz.classList.toggle('show', target === 'sleeping');
         }
         function mountPetChildren(type) {
             const el = document.getElementById('pet');
             if (!el) return;
             el.dataset.type = type;
             const mood = document.getElementById('pet-mood');
+            const name = document.getElementById('pet-name');
             const fx = document.getElementById('pet-mood-fx');
             const zz = document.getElementById('pet-zz');
             const food = document.getElementById('pet-food');
             el.innerHTML = renderPet(type, el.dataset.state || 'idle');
             if (mood) el.appendChild(mood);
+            if (name) el.appendChild(name);
             if (fx) el.appendChild(fx);
             if (zz) el.appendChild(zz);
             if (food) el.appendChild(food);
@@ -3268,9 +3310,10 @@
         function triggerOneShotState(state, ms) {
             petActiveStates.add(state);
             recomputePetState();
-            clearTimeout(window['_petOneShot_' + state]);
-            window['_petOneShot_' + state] = setTimeout(() => {
+            clearTimeout(petTimers.oneShot[state]);
+            petTimers.oneShot[state] = setTimeout(() => {
                 petActiveStates.delete(state);
+                petTimers.oneShot[state] = null;
                 recomputePetState();
             }, ms);
         }
@@ -3346,14 +3389,12 @@
                 originTop  = (rect.top  - pRect.top ) / dragScale;
                 lastX = originLeft;
                 dragging = true; moved = false;
-                // 安静（quiet）状态时，把拖拽限制在 pet-home 内
-                clampEnabled = !isPetActive();
-                if (clampEnabled) {
-                    const pw = parent.clientWidth || parent.offsetWidth || 0;
-                    const ph = parent.clientHeight || parent.offsetHeight || 0;
-                    clampMaxLeft = Math.max(0, pw - el.offsetWidth);
-                    clampMaxTop  = Math.max(0, ph - el.offsetHeight);
-                }
+                // 宠物始终挂在 #main-container 内，拖拽 clamp 到父容器边界
+                clampEnabled = true;
+                const pw = parent.clientWidth || parent.offsetWidth || 0;
+                const ph = parent.clientHeight || parent.offsetHeight || 0;
+                clampMaxLeft = Math.max(0, pw - el.offsetWidth);
+                clampMaxTop  = Math.max(0, ph - el.offsetHeight);
                 el.setPointerCapture(pid);
             });
             el.addEventListener('pointermove', e => {
@@ -3404,19 +3445,37 @@
             el.addEventListener('pointercancel', finish);
         }
 
-        // ===== 活跃（active）模式：脱离 pet-home 全屏游走；安静（quiet）模式：在 pet-home 内小范围活动 =====
-        // 兼容迁移：旧版使用 pet.free 键，一次性迁入 pet.active
+        // ===== 活跃（active）模式：大幅度全屏游走；安静（quiet）模式：围绕当前位置短距离随机走动（两者都在 main-container 范围内）=====
+        // 兼容迁移：旧版使用 pet.free 键，一次性迁入 pet.active；首次访问默认活跃
         (function migratePetActiveKey() {
             if (localStorage.getItem('pet.active') === null) {
                 const legacy = localStorage.getItem('pet.free');
                 if (legacy !== null) {
                     localStorage.setItem('pet.active', legacy);
                     localStorage.removeItem('pet.free');
+                } else {
+                    localStorage.setItem('pet.active', '1'); // 首次访问默认活跃
                 }
+            }
+        })();
+        // 坐标系迁移：v5 之前 pet.pos 是相对 #pet-main（280×180）的坐标；现在相对 #main-container。
+        // 小数值在新坐标系下会让宠物挤在左上角，此处一次性清除旧值。
+        (function migratePetPosCoords() {
+            if (localStorage.getItem('pet.posVersion') !== '2') {
+                localStorage.removeItem('pet.pos');
+                localStorage.setItem('pet.posVersion', '2');
             }
         })();
         function isPetActive() { return localStorage.getItem('pet.active') === '1'; }
         function setPetActiveFlag(on) { localStorage.setItem('pet.active', on ? '1' : '0'); }
+        // 首次出场 / 刷新兜底的右上角默认落位（贴近呼吸式宠物按钮）
+        function getPetInitialCorner() {
+            const root = document.getElementById('main-container');
+            const el = document.getElementById('pet');
+            if (!root || !el) return null;
+            const PET = el.offsetWidth || 120;
+            return { x: Math.max(0, root.offsetWidth - PET - 65), y: 140 };
+        }
 
         function getPetObstacleRects() {
             // 所有玻璃面板（搜索框 + 各分栏）都是宠物的禁区（视口坐标）
@@ -3479,31 +3538,42 @@
                 // 角落都被遮挡：退到屏幕边缘上下
                 return { x: maxX, y: minY };
             }
-            // 普通/开心：全屏随机，避开所有面板
+            // 普通/开心：围绕当前位置在最大步长内随机选点，避开所有面板
+            const el = document.getElementById('pet');
+            const cur = el ? { x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0 } : { x: w / 2, y: h / 2 };
+            const MAX_STEP = 320;
             for (let i = 0; i < 24; i++) {
-                const x = minX + Math.random() * (maxX - minX);
-                const y = minY + Math.random() * (maxY - minY);
+                const x = Math.max(minX, Math.min(maxX, cur.x + (Math.random() * 2 - 1) * MAX_STEP));
+                const y = Math.max(minY, Math.min(maxY, cur.y + (Math.random() * 2 - 1) * MAX_STEP));
                 if (!rectOverlapsAny(x, y, PET, rects)) return { x, y };
             }
             // 兜底：右下角
             return { x: maxX, y: maxY };
         }
-        // 安静模式：在 #pet-main 区域内随机挑一个短距离目标点
+        // 安静模式：在 #main-container 全屏范围内，围绕宠物当前位置做短距离随机游走，避开面板
         function pickQuietTarget() {
             const el = document.getElementById('pet');
-            const home = document.getElementById('pet-main');
-            if (!el || !home) return null;
-            const maxX = Math.max(0, home.clientWidth  - el.offsetWidth);
-            const maxY = Math.max(0, home.clientHeight - el.offsetHeight);
+            const root = document.getElementById('main-container');
+            if (!el || !root) return null;
+            const PET = el.offsetWidth || 120, MARGIN = 16;
+            const minX = MARGIN, minY = MARGIN;
+            const maxX = Math.max(minX, root.offsetWidth  - PET - MARGIN);
+            const maxY = Math.max(minY, root.offsetHeight - PET - MARGIN);
             const cur = { x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0 };
-            const step = 40;
-            const tx = Math.max(0, Math.min(maxX, cur.x + (Math.random() * 2 - 1) * step));
-            const ty = Math.max(0, Math.min(maxY, cur.y + (Math.random() * 2 - 1) * step));
-            return { x: tx, y: ty };
+            const step = 80;
+            const rects = getPetObstacleRectsLocal(root);
+            for (let i = 0; i < 12; i++) {
+                const tx = Math.max(minX, Math.min(maxX, cur.x + (Math.random() * 2 - 1) * step));
+                const ty = Math.max(minY, Math.min(maxY, cur.y + (Math.random() * 2 - 1) * step));
+                if (!rectOverlapsAny(tx, ty, PET, rects)) return { x: tx, y: ty };
+            }
+            return null;
         }
-        // ===== 宠物状态机：active 模式全屏游走 / quiet 模式 pet-home 内偶尔短距离移动 =====
+        // ===== 宠物状态机：active 模式大幅度游走 / quiet 模式短距离偶尔走动，两者均在 #main-container 内 =====
         const PET_WALK_SPEED = 60; // px/sec 上限
         const petFsm = { state: null, mode: null, stateTimer: null, walkTimer: null, yawnTimer: null };
+        // 集中托管所有 setTimeout 句柄，避免 window._petX 全局污染
+        const petTimers = { modeA: null, modeB: null, celebrate: null, oneShot: {} };
         // 宠物朝向锁：在此时间戳前，鼠标朝向逻辑不得覆盖行走 / 切换活跃·安静时设定的朝向。
         let petFacingLockedUntil = 0;
         function lockPetFacing(ms) {
@@ -3598,20 +3668,45 @@
             void el.offsetWidth; // 强制 reflow，确保新 transition 生效
             el.style.left = target.x + 'px';
             el.style.top = target.y + 'px';
-            applyMoodToBaseState();
-            petFsm.walkTimer = setTimeout(() => fsmEnter('standing'), ms + 50);
+            // 视觉切到 walking（起手帧 walking 1）+ 启动两帧交替
+            setPetState('walking');
+            startWalkingAnimation();
+            petFsm.walkTimer = setTimeout(() => {
+                stopWalkingAnimation();
+                fsmEnter('standing'); // standing → applyMoodToBaseState → idle/sad
+            }, ms + 50);
         }
         function runFsmSitting() {
-            // 用 sleeping 视觉作为坐下姿势（无专属 sitting 素材）；不显示 zz
-            petActiveStates.add('sleeping');
-            recomputePetState();
+            setPetState('sitting');
             const zz = document.getElementById('pet-zz');
-            if (zz) zz.classList.remove('show'); // 坐下不显示 zz
+            if (zz) zz.classList.remove('show');
             const dur = 5000 + Math.random() * 5000; // 5-10s
-            petFsm.stateTimer = setTimeout(() => {
-                petActiveStates.delete('sleeping');
-                fsmEnter('standing');
-            }, dur);
+            petFsm.stateTimer = setTimeout(() => fsmEnter('standing'), dur);
+        }
+        // walking 两帧交替。直接换 src，不动 opacity → 缓存命中下零闪烁
+        // 步频按品种调：狗/猴节奏更快
+        const PET_WALK_FRAME_MS = { cat: 350, pig: 350, dog: 200, monkey: 200 };
+        function startWalkingAnimation() {
+            const el = document.getElementById('pet');
+            if (!el) return;
+            stopWalkingAnimation();
+            const type = el.dataset.type || localStorage.getItem('pet.type') || 'cat';
+            const interval = PET_WALK_FRAME_MS[type] || 350;
+            let frame = 1;
+            el._walkFrameTimer = setInterval(() => {
+                if (el.dataset.state !== 'walking') {
+                    stopWalkingAnimation();
+                    return;
+                }
+                frame = frame === 1 ? 2 : 1;
+                const img = el.querySelector('.pet-img');
+                if (img) img.src = `assets/pets/${type}/walking ${frame}.png`;
+            }, interval);
+        }
+        function stopWalkingAnimation() {
+            const el = document.getElementById('pet');
+            if (!el) return;
+            if (el._walkFrameTimer) { clearInterval(el._walkFrameTimer); el._walkFrameTimer = null; }
         }
         function runFsmSleeping() {
             // 先 yawning 1.5s → 再 sleeping + zz；20-40s 后自睡醒
@@ -3642,107 +3737,91 @@
         }
         function stopPetRoam() {
             clearFsmTimers();
+            clearPetModeTimers();
+            stopWalkingAnimation();
             petFsm.state = null;
             petFsm.mode = null;
-            petActiveStates.delete('yawning');
-            petActiveStates.delete('sleeping');
+            // 清理所有瞬时状态，避免切模式时残留的 happy/celebrate/eating 动画"跟过来"
+            ['yawning', 'sleeping', 'happy', 'celebrate', 'eating', 'sad'].forEach(s => {
+                petActiveStates.delete(s);
+                if (petTimers.oneShot[s]) { clearTimeout(petTimers.oneShot[s]); petTimers.oneShot[s] = null; }
+            });
+            if (petTimers.celebrate) { clearTimeout(petTimers.celebrate); petTimers.celebrate = null; }
+            recomputePetState();
+            // 冻结视觉位置：切模式时若有 in-flight transition，防止旧目标继续滑过去
+            freezePetPosition();
+        }
+        // 切模式编排定时器（Phase 1/2）的清理；单独抽出给 enterActive/Quiet 复用
+        function clearPetModeTimers() {
+            if (petTimers.modeA) { clearTimeout(petTimers.modeA); petTimers.modeA = null; }
+            if (petTimers.modeB) { clearTimeout(petTimers.modeB); petTimers.modeB = null; }
+        }
+        // 冻结宠物当前视觉位置：关 transition → 读 computed → 写回 → 还原
+        // 用途：切模式 / 中断 phase-2 walk 时避免旧 transition 继续朝旧目标滑动
+        function freezePetPosition() {
             const el = document.getElementById('pet');
-            if (el) el.style.transition = ''; // 还原默认 CSS transition
+            if (!el) return;
+            const cs = getComputedStyle(el);
+            const frozenLeft = cs.left;
+            const frozenTop = cs.top;
+            el.style.transition = 'none';
+            el.style.left = frozenLeft;
+            el.style.top = frozenTop;
+            void el.offsetWidth;
+            el.style.transition = '';
         }
         function enterActiveMode() {
             const el = document.getElementById('pet');
             if (!el) return;
             setPetActiveFlag(true);
-            // 祖先 backdrop-filter 会成为 fixed 子元素的包含块；
-            // 挂到 #main-container（已应用等比 scale 的设计稿容器），
-            // 这样宠物会和整个 UI 一起被缩放，视觉与安静模式一致。
-            const root = document.getElementById('main-container');
-            if (!root) return;
-            // 先记录宠物当前的视觉位置，换算到设计稿坐标系
-            const rootRect = root.getBoundingClientRect();
-            const petRect = el.getBoundingClientRect();
-            const scale = (rootRect.width / root.offsetWidth) || 1;
-            const startX = (petRect.left - rootRect.left) / scale;
-            const startY = (petRect.top - rootRect.top) / scale;
-            if (el.parentElement !== root) root.appendChild(el);
-            el.classList.add('pinned');
-            el.dataset.pinned = 'true';
+            stopPetRoam(); // 内部已 clearPetModeTimers + freezePetPosition
             el.dataset.active = 'true';
-            // 先把宠物钉在原视觉位置（关闭过渡），下一帧再过渡到目标角落
-            el.style.transition = 'none';
-            el.style.left = startX + 'px';
-            el.style.top = startY + 'px';
-            void el.offsetHeight; // 强制回流，确保起点生效
-            el.style.transition = '';
-            const w = root.offsetWidth;
-            const h = root.offsetHeight;
-            // 宠物底图 120px, 活跃模式靠右下贴 24px 边距
-            const PET_SIZE = 120, ACTIVE_EDGE_MARGIN = 24;
-            requestAnimationFrame(() => {
-                const targetLeft = (w - PET_SIZE - ACTIVE_EDGE_MARGIN);
-                el.classList.toggle('facing-left', targetLeft < startX);
-                lockPetFacing(4800);
-                el.style.left = targetLeft + 'px';
-                el.style.top = (h - PET_SIZE - ACTIVE_EDGE_MARGIN) + 'px';
-                startPetRoam();
-                updatePetActiveButton();
-            });
+            updatePetActiveButton();
+            // 切换编排：Phase 1 happy 2s → Phase 2 小范围走一步 → Phase 3 进入活跃 FSM
+            triggerOneShotState('happy', 2000);
+            petTimers.modeA = setTimeout(() => {
+                if (!isPetActive()) return; // 期间被切回安静
+                // 显式清掉 happy（避免它的 oneShot timer 与本回调同帧 fire 时打架）
+                petActiveStates.delete('happy');
+                if (petTimers.oneShot.happy) { clearTimeout(petTimers.oneShot.happy); petTimers.oneShot.happy = null; }
+                // 复用 pickQuietTarget 做一步短距离走位，自带面板避障
+                const target = pickQuietTarget();
+                if (!target) { startPetRoam(); return; }
+                const cur = { x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0 };
+                const dist = Math.hypot(target.x - cur.x, target.y - cur.y);
+                const ms = Math.max(800, (dist / PET_WALK_SPEED) * 1000);
+                el.style.transition = `left ${ms}ms cubic-bezier(0.42,0,0.58,1), top ${ms}ms cubic-bezier(0.42,0,0.58,1), opacity 0.35s ease`;
+                el.classList.toggle('facing-left', target.x < cur.x);
+                lockPetFacing(ms);
+                void el.offsetWidth;
+                el.style.left = target.x + 'px';
+                el.style.top = target.y + 'px';
+                // happy 结束后小走一步也走 walking 帧动画
+                setPetState('walking');
+                startWalkingAnimation();
+                petTimers.modeB = setTimeout(() => {
+                    if (!isPetActive()) return;
+                    stopWalkingAnimation();
+                    el.style.transition = '';
+                    startPetRoam();
+                }, ms + 80);
+            }, 2000);
         }
         function enterQuietMode() {
             setPetActiveFlag(false);
-            stopPetRoam();
+            stopPetRoam(); // 内部已 clearPetModeTimers + freezePetPosition
             const el = document.getElementById('pet');
             if (!el) return;
-            const home = document.getElementById('pet-main');
-            const root = document.getElementById('main-container');
             updatePetActiveButton();
-            // 无法定位容器时回退到即时归位
-            if (!home || !root) {
-                if (home && el.parentElement !== home) home.appendChild(el);
-                el.classList.remove('pinned');
-                delete el.dataset.pinned;
-                delete el.dataset.active;
-                el.style.left = '0px';
-                el.style.top = '0px';
-                clearPetPos();
+            el.classList.remove('pinned');
+            delete el.dataset.pinned;
+            delete el.dataset.active;
+            // 切到安静：先 sitting 5 秒，再启动 quiet FSM
+            setPetState('sitting');
+            petTimers.modeA = setTimeout(() => {
+                if (isPetActive()) return; // 期间被切回活跃
                 startPetRoam();
-                return;
-            }
-            // 仍挂在 main-container 上，用 4.8s CSS transition 走回 pet-main 左上角
-            const rootRect = root.getBoundingClientRect();
-            const homeRect = home.getBoundingClientRect();
-            const scale = (rootRect.width / root.offsetWidth) || 1;
-            const targetX = (homeRect.left - rootRect.left) / scale;
-            const targetY = (homeRect.top - rootRect.top) / scale;
-            const curX = parseFloat(el.style.left) || 0;
-            el.classList.toggle('facing-left', targetX < curX);
-            lockPetFacing(4800); // 默认 .pet-wrap transition 时长
-            el.style.left = targetX + 'px';
-            el.style.top = targetY + 'px';
-            let done = false;
-            const commit = () => {
-                if (done) return;
-                done = true;
-                el.removeEventListener('transitionend', onEnd);
-                if (el.parentElement !== home) home.appendChild(el);
-                el.classList.remove('pinned');
-                delete el.dataset.pinned;
-                delete el.dataset.active;
-                el.style.transition = 'none';
-                el.style.left = '0px';
-                el.style.top = '0px';
-                void el.offsetHeight;
-                el.style.transition = '';
-                clearPetPos();
-                startPetRoam();
-            };
-            const onEnd = (ev) => {
-                if (ev.target !== el) return;
-                if (ev.propertyName !== 'left' && ev.propertyName !== 'top') return;
-                commit();
-            };
-            el.addEventListener('transitionend', onEnd);
-            setTimeout(commit, 5200); // 兜底，防止 transitionend 未触发
+            }, 5000);
         }
         function togglePetActive() {
             if (isPetActive()) enterQuietMode(); else enterActiveMode();
@@ -3760,14 +3839,11 @@
         function setPetHiddenFlag(on) { localStorage.setItem('pet.hidden', on ? '1' : '0'); }
         function setPetHiddenState(hidden) {
             const el = document.getElementById('pet');
-            const home = document.getElementById('pet-home');
             if (hidden) {
                 if (typeof stopPetRoam === 'function') stopPetRoam();
                 if (el) el.style.display = 'none';
-                if (home) home.style.visibility = 'hidden';
             } else {
                 if (el) el.style.display = '';
-                if (home) home.style.visibility = '';
                 if (typeof startPetRoam === 'function' && isPetInitialized()) startPetRoam();
             }
         }
@@ -3777,10 +3853,26 @@
             setPetHiddenState(next);
             refreshPetNavUI();
         }
+        function isPetHintDismissed() { return localStorage.getItem('pet.hintDismissed') === '1'; }
+        function dismissPetHint() {
+            localStorage.setItem('pet.hintDismissed', '1');
+            const hint = document.getElementById('pet-hint');
+            if (hint) hint.classList.add('hidden');
+            refreshPetNavUI();
+        }
+        function maybeShowPetHint() {
+            const hint = document.getElementById('pet-hint');
+            if (!hint) return;
+            const show = !isPetInitialized() && !isPetHintDismissed();
+            hint.classList.toggle('hidden', !show);
+        }
         function refreshPetNavUI() {
             const btn = document.getElementById('pet-nav-btn');
+            const initBtn = document.getElementById('pet-nav-init-btn');
             const initialized = isPetInitialized();
-            if (btn) btn.classList.toggle('breath', !initialized);
+            const breathOn = !initialized && !isPetHintDismissed();
+            if (btn) btn.classList.toggle('breath', breathOn);
+            if (initBtn) initBtn.classList.toggle('breath', breathOn);
 
             const activeSw = document.getElementById('pet-nav-active-switch');
             const activeLbl = document.getElementById('pet-nav-active-label');
@@ -3813,6 +3905,13 @@
             for (const s of PET_STATE_PRIORITY) {
                 if (petActiveStates.has(s)) { setPetState(s); return; }
             }
+            // FSM 驱动的 walking / sitting 视觉优先于裸 idle —— 一次性事件结束后能恢复
+            if (petFsm.state === 'walking') {
+                setPetState('walking');
+                startWalkingAnimation(); // 内部先 stop 再 start，幂等
+                return;
+            }
+            if (petFsm.state === 'sitting') { setPetState('sitting'); return; }
             setPetState('idle');
         }
         function setPetPassive(state, on) {
@@ -3887,9 +3986,10 @@
         function triggerCelebrate(ms) {
             petActiveStates.add('celebrate');
             recomputePetState();
-            clearTimeout(window._petCelebrateTimer);
-            window._petCelebrateTimer = setTimeout(() => {
+            clearTimeout(petTimers.celebrate);
+            petTimers.celebrate = setTimeout(() => {
                 petActiveStates.delete('celebrate');
+                petTimers.celebrate = null;
                 recomputePetState();
             }, ms || 1500);
         }
@@ -3962,42 +4062,51 @@
             return true;
         }
 
-        // 显示/隐藏（hover 时显示）
+        // 显示/隐藏（hover 时显示 心情 + 名字）
         let moodHideTimer = null;
         function showPetMoodBar() {
             const box = document.getElementById('pet-mood');
+            const nameBox = document.getElementById('pet-name');
             if (!box) return;
             renderPetMood();
+            if (nameBox) {
+                nameBox.textContent = localStorage.getItem('pet.name') || '';
+                nameBox.classList.add('show');
+            }
             clearTimeout(moodHideTimer);
             box.classList.add('show');
         }
         function hidePetMoodBar() {
             const box = document.getElementById('pet-mood');
+            const nameBox = document.getElementById('pet-name');
             if (!box) return;
             clearTimeout(moodHideTimer);
-            moodHideTimer = setTimeout(() => box.classList.remove('show'), 200);
+            moodHideTimer = setTimeout(() => {
+                box.classList.remove('show');
+                if (nameBox) nameBox.classList.remove('show');
+            }, 200);
         }
 
-        // ===== 宠物选择引导（内嵌在宠物面板内） =====
+        // ===== 宠物选择引导 =====
         function showPetOnboard() {
             const box = document.getElementById('pet-onboard');
-            const main = document.getElementById('pet-main');
-            if (!box || !main) return;
+            const pet = document.getElementById('pet');
+            if (!box) return;
             box.querySelectorAll('.pet-onboard-svg').forEach(el => {
                 el.innerHTML = renderPet(el.dataset.type, 'idle');
             });
             document.getElementById('pet-onboard-name').value = '';
             refreshOnboardGate();
-            main.classList.add('hidden');
+            if (pet) pet.style.visibility = 'hidden';
             box.classList.remove('hidden'); box.classList.add('flex');
             setTimeout(() => document.getElementById('pet-onboard-name').focus(), 50);
         }
         function hidePetOnboard() {
             const box = document.getElementById('pet-onboard');
-            const main = document.getElementById('pet-main');
-            if (!box || !main) return;
+            const pet = document.getElementById('pet');
+            if (!box) return;
             box.classList.add('hidden'); box.classList.remove('flex');
-            main.classList.remove('hidden');
+            if (pet) pet.style.visibility = '';
         }
         function refreshOnboardGate() {
             const name = document.getElementById('pet-onboard-name').value.trim();
@@ -4006,39 +4115,30 @@
             const hint = document.getElementById('pet-onboard-hint');
             if (hint) hint.innerText = ready ? '选择你的伙伴' : '填写名字后选择动物';
         }
-        function openPetResetConfirm() {
-            toggleModal('pet-reset-modal');
-        }
-        function executePetReset() {
-            ['pet.type','pet.name','pet.mood','pet.lastInteract','pet.lastLoad','pet.feedDate','pet.feedCount','pet.pos','pet.active','pet.hidden','pet.lastActiveTime','pet.lastWakeDate']
-                .forEach(k => localStorage.removeItem(k));
-            stopPetRoam();
-            const petEl = document.getElementById('pet');
-            if (petEl) {
-                petEl.classList.remove('pinned');
-                delete petEl.dataset.pinned;
-                delete petEl.dataset.active;
-                petEl.style.left = '0px';
-                petEl.style.top = '0px';
-            }
-            // 重置后还原 display / visibility
-            setPetHiddenState(false);
-            updatePetActiveButton();
-            renderPetMood();
-            toggleModal('pet-reset-modal');
-            showPetOnboard();
-            refreshPetNavUI();
-        }
-
         function confirmPetOnboard(type) {
             const name = document.getElementById('pet-onboard-name').value.trim();
             if (!name || !type) return;
             localStorage.setItem('pet.type', type);
             localStorage.setItem('pet.name', name);
+            setPetActiveFlag(true); // 首次初始化：默认活跃模式
             applyPetTypeToUI(type);
+            // 首次初始化：pet 之前被 display:none 隐藏，现在显示并落位到右上角（贴近呼吸式按钮）
+            const petEl = document.getElementById('pet');
+            if (petEl) {
+                petEl.style.display = '';
+                const corner = getPetInitialCorner();
+                if (corner) {
+                    petEl.style.transition = 'none';
+                    pinPetTo(corner.x, corner.y);
+                    void petEl.offsetHeight;
+                    petEl.style.transition = '';
+                }
+            }
             hidePetOnboard();
             startPetRoam();
+            triggerOneShotState('happy', 2000); // 首次出场：happy 2s
             refreshPetNavUI();
+            maybeShowPetHint(); // 初始化完成后自动隐藏提示条
         }
 
         // 初始化
@@ -4084,16 +4184,28 @@
             // 拖拽
             attachPetDrag();
             const savedPos = loadPetPos();
-            if (savedPos && !isPetActive()) pinPetTo(savedPos.x, savedPos.y);
+            if (isPetInitialized()) {
+                // 初始落位：关闭 transition，避免页面加载后从 (0,0) 滑动过来
+                el.style.transition = 'none';
+                if (savedPos) {
+                    pinPetTo(savedPos.x, savedPos.y);
+                } else {
+                    // 没有历史位置：落到右上角默认位置
+                    const corner = getPetInitialCorner();
+                    if (corner) pinPetTo(corner.x, corner.y);
+                }
+                void el.offsetHeight;
+                el.style.transition = '';
+            }
 
-            // 活跃模式：刷新后恢复
+            // 活跃模式：刷新后恢复；未初始化时保持静止，由右上角呼吸式按钮引导用户
             updatePetActiveButton();
-            if (isPetActive()) {
-                // 等下方 applyPetTypeToUI 完成后再启动
-                setTimeout(enterActiveMode, 0);
-            } else {
-                // 安静态：启动 quiet FSM，偶尔走动
-                setTimeout(startPetRoam, 0);
+            if (isPetInitialized()) {
+                if (isPetActive()) {
+                    setTimeout(enterActiveMode, 0);
+                } else {
+                    setTimeout(startPetRoam, 0);
+                }
             }
 
             // 双击宠物头部位置（页面任意处）回到分栏：长按 1 秒可解除固定
@@ -4117,21 +4229,33 @@
             renderPetMood();
             applyMoodToBaseState();
 
-            // 首次启动或缺失数据 → 不自动弹引导；由右上角宠物图标的呼吸高亮提示用户点击
+            // 首次启动或缺失数据 → 完全不渲染宠物，仅由右上角宠物按钮 + 下拉菜单里的"初始化"双重呼吸灯引导用户
             const savedType = localStorage.getItem('pet.type');
             const savedName = localStorage.getItem('pet.name');
             if (savedType && savedName) {
                 applyPetTypeToUI(savedType);
-                hidePetOnboard();
             } else {
-                hidePetOnboard();
+                el.style.display = 'none';
             }
+            hidePetOnboard();
 
             // 恢复「显示/隐藏」偏好
             if (isPetHidden()) setPetHiddenState(true);
 
-            // 同步右上角下拉菜单的 UI（含呼吸提示）
+            // 同步右上角下拉菜单的 UI（含呼吸提示）+ 首次引导横条
             refreshPetNavUI();
+            maybeShowPetHint();
+
+            // 页面关闭/刷新前保存宠物当前位置（含 FSM 游走途中的位置，transition 目标值已写入 style）
+            // 用 pagehide（现代浏览器推荐，beforeunload 在 Chrome 已不可靠且会阻塞 bfcache）
+            window.addEventListener('pagehide', () => {
+                if (!isPetInitialized()) return;
+                const petEl = document.getElementById('pet');
+                if (!petEl) return;
+                const x = parseFloat(petEl.style.left);
+                const y = parseFloat(petEl.style.top);
+                if (isFinite(x) && isFinite(y)) savePetPos(x, y);
+            });
         })();
 
         // 宠物朝向鼠标：静止时跟随鼠标 X 方向翻转
@@ -4145,6 +4269,9 @@
                 if (petLoadSleep) return;
                 if (petActiveStates && petActiveStates.has('dragged')) return;
                 if (typeof petFsm !== 'undefined' && (petFsm.state === 'walking' || petFsm.state === 'sleeping' || petFsm.state === 'yawning')) return;
+                // 视觉睡姿（含 sitting 复用 sleeping 素材、petActiveStates 驱动的入睡）也不朝鼠标翻
+                if (el.dataset.state === 'sleeping' || el.dataset.state === 'yawning') return;
+                if (petActiveStates && (petActiveStates.has('sleeping') || petActiveStates.has('yawning'))) return;
                 if (performance.now() < petFacingLockedUntil) return;
                 const r = el.getBoundingClientRect();
                 if (r.width === 0) return;
