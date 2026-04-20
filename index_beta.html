@@ -399,11 +399,8 @@
             transform: translateY(-4px);
             pointer-events: none;
         }
-        /* hover 右上角任意按钮时，宠物淡出让位下拉菜单（顶栏 z-30 < 宠物 z-40，必须把宠物隐起来才能让下拉可见） */
-        body:has(#top-nav-buttons:hover) #pet {
-            opacity: 0;
-            pointer-events: none;
-        }
+        /* 顶栏：关掉 glass-group 的 stacking isolation，让每个 button-wrap 的 hover z-50 能升到 main-container 上层 */
+        #top-nav-buttons { isolation: auto; }
         /* 菜单里的开关样式：同色调毛玻璃，保持极简 */
         .pet-nav-switch {
             position: relative; display: inline-block; width: 32px; height: 18px;
@@ -553,11 +550,11 @@
         <!-- 主内容容器：固定 1440×900，由 JS 等比缩放 -->
         <div id="main-container" class="flex flex-col p-12 relative z-10">
 
-            <!-- 顶部：设置按钮 -->
-            <div class="flex justify-end items-start h-20 relative z-30">
+            <!-- 顶部：设置按钮。wrapper 不设 z-index 让每个 button-wrap 的 hover z-50 能自然升到 main-container 层 -->
+            <div class="flex justify-end items-start h-20">
                 <div id="top-nav-buttons" class="flex gap-4 glass-group">
                     <!-- 番茄钟 -->
-                    <div class="relative group/pomo">
+                    <div class="relative group/pomo hover:z-50">
                         <button id="pomodoro-btn" class="apple-glass p-5 rounded-full hover:bg-white/20 transition-all flex items-center justify-center" title="番茄钟"><i data-lucide="timer" class="w-6 h-6"></i></button>
                         <div id="pomodoro-panel" class="absolute right-0 top-full mt-3 w-72 apple-glass rounded-[1.8rem] p-5 z-50 opacity-0 invisible group-hover/pomo:opacity-100 group-hover/pomo:visible transition-all duration-500 transform translate-y-2 group-hover/pomo:translate-y-0">
                             <div class="text-xs opacity-60 font-black tracking-[0.2em] uppercase mb-4">番茄钟</div>
@@ -586,7 +583,7 @@
                         </div>
                     </div>
                     <!-- 音乐下拉菜单 -->
-                <div class="relative group/audio">
+                <div class="relative group/audio hover:z-50">
                     <button id="audio-btn" class="apple-glass p-5 rounded-full hover:bg-white/20 transition-all flex items-center justify-center">
                         <i id="audio-main-icon" data-lucide="music" class="w-6 h-6"></i>
                     </button>
@@ -625,7 +622,7 @@
                 </div>
                 
                 <!-- 壁纸下拉 -->
-                <div class="relative group/bg">
+                <div class="relative group/bg hover:z-50">
                     <button class="apple-glass p-5 rounded-full hover:bg-white/20 transition-all flex items-center justify-center">
                         <i data-lucide="image" class="w-6 h-6"></i>
                     </button>
@@ -643,7 +640,7 @@
                     </div>
                 </div>
                 <!-- 宠物下拉（悬停触发） -->
-                <div class="relative group/pet-nav" id="pet-nav-wrap" onmouseenter="refreshPetNavUI()">
+                <div class="relative group/pet-nav hover:z-50" id="pet-nav-wrap" onmouseenter="refreshPetNavUI()">
                     <button id="pet-nav-btn" title="宠物" class="apple-glass p-5 rounded-full hover:bg-white/20 transition-all flex items-center justify-center">
                         <i data-lucide="paw-print" class="w-6 h-6"></i>
                     </button>
@@ -663,7 +660,7 @@
                     </div>
                 </div>
                 <!-- 面板开关下拉 -->
-                <div class="relative group/panels">
+                <div class="relative group/panels hover:z-50">
                     <button class="apple-glass p-5 rounded-full hover:bg-white/20 transition-all flex items-center justify-center">
                         <i data-lucide="layout-dashboard" class="w-6 h-6"></i>
                     </button>
@@ -688,7 +685,7 @@
                     </div>
                 </div>
                 <!-- 作者主页下拉 -->
-                <div class="relative group/author">
+                <div class="relative group/author hover:z-50">
                     <button class="apple-glass p-5 rounded-full hover:bg-white/20 transition-all flex items-center justify-center">
                         <i data-lucide="rocket" class="w-6 h-6"></i>
                     </button>
@@ -806,9 +803,18 @@
                     <div class="flex items-center gap-3 text-base uppercase tracking-[0.3em] font-normal opacity-40">
                         <i data-lucide="layout-grid" class="w-5 h-5"></i> Shortcuts
                     </div>
-                    <button onclick="togglePanel('shortcuts')" id="close-shortcuts" class="opacity-0 group-hover/shortcuts:opacity-30 hover:!opacity-100 transition-all">
-                        <i data-lucide="x" class="w-4 h-4"></i>
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <input type="file" id="bookmark-import-input" accept=".html,.htm" class="hidden" onchange="onBookmarkFilePicked(event)">
+                        <button onclick="document.getElementById('bookmark-import-input').click()" title="导入浏览器书签 (HTML)" class="opacity-0 group-hover/shortcuts:opacity-30 hover:!opacity-100 transition-all">
+                            <i data-lucide="upload" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="exportBookmarks()" title="导出为浏览器书签 (HTML)" class="opacity-0 group-hover/shortcuts:opacity-30 hover:!opacity-100 transition-all">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="togglePanel('shortcuts')" id="close-shortcuts" class="opacity-0 group-hover/shortcuts:opacity-30 hover:!opacity-100 transition-all">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
                 </div>
                 <!-- 分组标签栏 -->
                 <div id="group-tabs" class="flex items-center gap-1 pt-1 mb-4 pb-3 border-b border-white/10 overflow-x-auto no-scrollbar"></div>
@@ -851,6 +857,15 @@
                             <button onclick="formatDoc('removeFormat')" class="toolbar-btn" title="清除"><i data-lucide="eraser" class="w-3.5 h-3.5"></i></button>
                         </div>
                     </div>
+                    <div class="relative flex-shrink-0">
+                        <button id="note-export-toggle" onclick="toggleNoteExportMenu(event)" class="toolbar-btn" title="导出"><i data-lucide="download" class="w-3.5 h-3.5"></i></button>
+                        <div id="note-export-dropdown" class="hidden absolute right-0 top-full mt-2 z-20 apple-glass rounded-xl py-1 min-w-[100px]">
+                            <button onclick="exportCurrentNote('txt')"  class="w-full text-left px-4 py-2 text-[11px] uppercase tracking-widest font-bold hover:bg-white/10 transition-colors">TXT</button>
+                            <button onclick="exportCurrentNote('md')"   class="w-full text-left px-4 py-2 text-[11px] uppercase tracking-widest font-bold hover:bg-white/10 transition-colors">Markdown</button>
+                            <button onclick="exportCurrentNote('html')" class="w-full text-left px-4 py-2 text-[11px] uppercase tracking-widest font-bold hover:bg-white/10 transition-colors">HTML</button>
+                            <button onclick="exportCurrentNote('doc')"  class="w-full text-left px-4 py-2 text-[11px] uppercase tracking-widest font-bold hover:bg-white/10 transition-colors">Word (.doc)</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="flex-1 flex gap-2 min-h-0 relative">
                     <div id="notepad" contenteditable="true" class="flex-1 min-w-0 rich-editor no-scrollbar" placeholder="开始记录你的想法..."></div>
@@ -877,6 +892,9 @@
                         </button>
                         <button onclick="addTodo()" class="opacity-20 hover:opacity-100 transition-all">
                             <i data-lucide="plus" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="exportTodos()" title="导出为文本" class="opacity-0 group-hover/todo:opacity-30 hover:!opacity-100 transition-all">
+                            <i data-lucide="download" class="w-4 h-4"></i>
                         </button>
                         <button onclick="togglePanel('todo')" id="close-todo" class="opacity-0 group-hover/todo:opacity-30 hover:!opacity-100 transition-all">
                             <i data-lucide="x" class="w-4 h-4"></i>
@@ -946,6 +964,29 @@
                 <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=Donation" alt="QR" class="w-44 h-44 opacity-80">
             </div>
             <p class="text-[10px] opacity-30 uppercase tracking-[0.5em] font-black italic">Thanks for your coffee!</p>
+        </div>
+    </div>
+
+    <!-- 意见反馈 modal（由右上角作者下拉触发） -->
+    <div id="feedback-modal" class="modal">
+        <div class="apple-glass p-12 rounded-[4rem] max-w-md w-full relative modal-content">
+            <button onclick="toggleModal('feedback-modal')" class="modal-close"><i data-lucide="x"></i></button>
+            <h3 class="text-2xl font-light mb-8 tracking-tight">意见反馈</h3>
+            <div class="space-y-5">
+                <select id="fb-category" class="apple-input font-light">
+                    <option value="bug">Bug / 问题</option>
+                    <option value="feature">功能建议</option>
+                    <option value="other">其他</option>
+                </select>
+                <textarea id="fb-content" rows="5" class="apple-input font-light resize-none" placeholder="想说什么都可以…（必填）"></textarea>
+                <input type="text"  id="fb-nickname" class="apple-input font-light" placeholder="昵称（选填）">
+                <input type="email" id="fb-email"    class="apple-input font-light" placeholder="邮箱（选填，便于回复）">
+                <div id="fb-msg" class="text-[10px] uppercase tracking-[0.3em] font-black opacity-0 transition-opacity"></div>
+                <div class="flex gap-4 pt-2">
+                    <button onclick="toggleModal('feedback-modal')" class="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 py-5 rounded-[2rem] text-[10px] uppercase tracking-widest font-black opacity-50 hover:opacity-100">取消</button>
+                    <button id="fb-submit" onclick="submitFeedback()" class="flex-1 bg-white text-black font-black py-5 rounded-[2rem] text-[10px] uppercase tracking-widest hover:opacity-80 transition-all">发送</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1116,6 +1157,8 @@
                 { label: '阿宇不画图-小红书', icon: 'heart', url: 'https://xhslink.com/m/4PoZVQp09DM' },
             ]
         };
+        // Formsubmit hash endpoint：已激活，邮箱对应 wayneleo11@gmail.com 但对外隐藏
+        const FEEDBACK_ENDPOINT = 'https://formsubmit.co/ajax/cdbb253d6a3294a6f24fe41f1b62c0e9';
 
         lucide.createIcons();
 
@@ -1168,6 +1211,119 @@
 
         function saveGroups() {
             localStorage.setItem('shortcuts.groups', JSON.stringify(groups));
+        }
+
+        // ===== 浏览器书签导入（Netscape Bookmark File Format） =====
+        // Chrome / Firefox / Safari / Edge 导出的 .html 都是这个格式：<DT><H3>folder</H3><DL><DT><A HREF>link</A></DL>
+        function parseNetscapeBookmarks(htmlText) {
+            const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+            // 根 DL 可能有多个 <DT>，每个 DT 是文件夹 (H3+DL) 或单书签 (A)
+            // 递归扁平化：我们只取顶层文件夹作为 group，深层嵌套的书签合并到所属顶层组
+            function collectLinks(dl) {
+                const links = [];
+                dl.querySelectorAll(':scope > dt > a').forEach(a => {
+                    links.push({
+                        name: (a.textContent || a.getAttribute('href') || '').trim().slice(0, 120),
+                        url: a.getAttribute('href') || '',
+                        iconUrl: a.getAttribute('icon') || null
+                    });
+                });
+                // 深层嵌套子文件夹里的书签也拍平进来
+                dl.querySelectorAll(':scope > dt > dl').forEach(sub => {
+                    links.push(...collectLinks(sub));
+                });
+                return links.filter(b => /^https?:\/\//i.test(b.url));
+            }
+            const result = [];
+            const rootDl = doc.querySelector('dl');
+            if (!rootDl) return result;
+            // 顶层 DL 的每个 DT：若内含 H3 视为文件夹，否则直接书签归到"未分组"
+            const loose = [];
+            rootDl.querySelectorAll(':scope > dt').forEach(dt => {
+                const h3 = dt.querySelector(':scope > h3');
+                if (h3) {
+                    const name = (h3.textContent || '书签').trim().slice(0, 40);
+                    const subDl = dt.querySelector(':scope > dl');
+                    const links = subDl ? collectLinks(subDl) : [];
+                    if (links.length) result.push({ name, bookmarks: links });
+                } else {
+                    const a = dt.querySelector(':scope > a');
+                    if (a && /^https?:\/\//i.test(a.getAttribute('href') || '')) {
+                        loose.push({
+                            name: (a.textContent || '').trim().slice(0, 120),
+                            url: a.getAttribute('href'),
+                            iconUrl: a.getAttribute('icon') || null
+                        });
+                    }
+                }
+            });
+            if (loose.length) result.unshift({ name: '未分组', bookmarks: loose });
+            return result;
+        }
+
+        // 导出为 Netscape Bookmark File Format（Chrome/Firefox/Safari 均可导入）
+        function exportBookmarks() {
+            const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const now = Math.floor(Date.now() / 1000);
+            let body = '';
+            groups.forEach(g => {
+                body += `    <DT><H3 ADD_DATE="${now}" LAST_MODIFIED="${now}">${esc(g.name)}</H3>\n    <DL><p>\n`;
+                (g.bookmarks || []).forEach(b => {
+                    if (!b || !b.url) return;
+                    const iconAttr = b.iconUrl ? ` ICON="${esc(b.iconUrl)}"` : '';
+                    body += `        <DT><A HREF="${esc(b.url)}" ADD_DATE="${now}"${iconAttr}>${esc(b.name || b.url)}</A>\n`;
+                });
+                body += '    </DL><p>\n';
+            });
+            const html = `<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+<TITLE>Bookmarks</TITLE>
+<H1>Bookmarks</H1>
+<DL><p>
+${body}</DL><p>
+`;
+            const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const stamp = new Date().toISOString().slice(0, 10);
+            a.href = url;
+            a.download = `ayu-bookmarks-${stamp}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        function onBookmarkFilePicked(e) {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                try {
+                    const parsed = parseNetscapeBookmarks(String(ev.target.result || ''));
+                    if (!parsed.length) { alert('没有解析到任何书签。请检查文件是否为浏览器导出的 HTML。'); return; }
+                    const count = parsed.reduce((n, g) => n + g.bookmarks.length, 0);
+                    const ok = confirm(`解析到 ${parsed.length} 个分组，共 ${count} 条书签。\n\n【确定】追加到现有分组（新建组）\n【取消】放弃导入`);
+                    if (!ok) return;
+                    // 追加为新分组，避免覆盖既有数据
+                    parsed.forEach(g => {
+                        groups.push({
+                            id: 'group-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+                            name: g.name,
+                            bookmarks: g.bookmarks
+                        });
+                    });
+                    saveGroups();
+                    renderGroupTabs();
+                    calcAndRenderBookmarks();
+                } catch (err) {
+                    console.error(err);
+                    alert('解析失败：' + err.message);
+                } finally {
+                    e.target.value = ''; // 允许同一文件再次选择
+                }
+            };
+            reader.readAsText(file, 'utf-8');
         }
 
         function getCurrentBookmarks() {
@@ -1257,7 +1413,9 @@
                         <button onclick="deleteBookmark(${globalIndex})" class="bg-red-500/60 backdrop-blur-md rounded-full p-1.5 hover:bg-red-600/80"><i data-lucide="x" class="w-3 h-3"></i></button>
                     </div>
                     <a href="${s.url}" target="_blank" draggable="false" class="apple-glass w-[84px] h-[84px] mx-auto rounded-[1.2rem] flex items-center justify-center hover-lift group-hover:bg-white/30 shadow-sm">
-                        <i data-lucide="${s.icon || 'link-2'}" class="w-6 h-6 opacity-70"></i>
+                        ${s.iconUrl
+                            ? `<img src="${s.iconUrl}" alt="" class="w-6 h-6 rounded-sm" draggable="false">`
+                            : `<i data-lucide="${s.icon || 'link-2'}" class="w-6 h-6 opacity-70"></i>`}
                     </a>
                     <span class="text-[12px] opacity-30 group-hover:opacity-100 tracking-[0.1em] font-bold uppercase truncate w-full text-center transition-opacity">${s.name}</span>
                 </div>
@@ -1603,6 +1761,60 @@
         }
 
         function saveTodos() { localStorage.setItem('todos.active', JSON.stringify(todos)); }
+
+        // ===== 待办导出（纯文本） =====
+        function exportTodos() {
+            const pad = n => String(n).padStart(2, '0');
+            const fmtDate = ts => {
+                if (!ts) return '';
+                const d = new Date(ts);
+                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+            };
+            const fmtDateTime = ts => {
+                if (!ts) return '';
+                const d = new Date(ts);
+                return `${fmtDate(ts)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            };
+            const PRI_TAG = { high: '[高]', medium: '[中]', low: '[低]' };
+            const PRI_RANK = { high: 0, medium: 1, low: 2 };
+
+            const active = todos.filter(t => !t.completed)
+                .sort((a, b) => (PRI_RANK[a.priority] - PRI_RANK[b.priority]));
+            let archived = [];
+            try { archived = JSON.parse(localStorage.getItem('todos.completed') || '[]'); } catch (_) {}
+            archived.sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+
+            const lines = [];
+            lines.push('# 待办清单');
+            lines.push(`生成时间：${fmtDateTime(Date.now())}`);
+            lines.push('');
+            lines.push(`## 进行中（${active.length}）`);
+            lines.push('');
+            if (active.length === 0) lines.push('（无）');
+            active.forEach(t => {
+                const parts = [PRI_TAG[t.priority] || '[中]', t.text];
+                if (t.dueDate) parts.push(`（截止：${t.dueDate}）`);
+                lines.push(`- ${parts.join(' ')}`);
+            });
+            lines.push('');
+            lines.push(`## 已完成（近 30 天，${archived.length}）`);
+            lines.push('');
+            if (archived.length === 0) lines.push('（无）');
+            archived.forEach(t => {
+                const when = fmtDate(t.completedAt);
+                const pri = PRI_TAG[t.priority] || '[中]';
+                lines.push(`- [${when}] ${pri} ${t.text}`);
+            });
+            lines.push('');
+
+            const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tasks-${fmtDate(Date.now())}.txt`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
 
         function archiveCompleted(todo) {
             let arc = JSON.parse(localStorage.getItem('todos.completed') || '[]');
@@ -2408,7 +2620,17 @@
             };
         }
 
-        let currentEngine = 'baidu';
+        const SEARCH_ENGINE_KEY = 'search.engine';
+        const SEARCH_ENGINE_NAMES = { baidu: 'Baidu', google: 'Google', bing: 'Bing' };
+        let currentEngine = (function loadEngine() {
+            const saved = localStorage.getItem(SEARCH_ENGINE_KEY);
+            return SEARCH_ENGINE_NAMES[saved] ? saved : 'baidu';
+        })();
+        // 初始同步 UI 标签
+        (function syncEngineLabel() {
+            const lbl = document.getElementById('current-engine-name');
+            if (lbl) lbl.innerText = SEARCH_ENGINE_NAMES[currentEngine];
+        })();
 
         function toggleEngineDropdown(e) {
             e.stopPropagation();
@@ -2416,9 +2638,10 @@
         }
 
         function setSearchEngine(engine) {
+            if (!SEARCH_ENGINE_NAMES[engine]) return;
             currentEngine = engine;
-            const names = { baidu: 'Baidu', google: 'Google', bing: 'Bing' };
-            document.getElementById('current-engine-name').innerText = names[engine];
+            localStorage.setItem(SEARCH_ENGINE_KEY, engine);
+            document.getElementById('current-engine-name').innerText = SEARCH_ENGINE_NAMES[engine];
             document.getElementById('engine-dropdown').classList.remove('active');
         }
 
@@ -2544,7 +2767,7 @@
             const nameEl = document.getElementById('author-dd-name');
             if (nameEl) nameEl.innerText = AUTHOR_CONFIG.name;
             const container = document.getElementById('author-links');
-            container.innerHTML = AUTHOR_CONFIG.links.map(link => `
+            const linksHtml = AUTHOR_CONFIG.links.map(link => `
                 <a href="${link.url}" target="_blank" rel="noopener"
                    class="w-full text-left px-6 py-3 text-xs uppercase tracking-widest font-bold hover:bg-white/10 transition-colors flex items-center gap-3">
                     <i data-lucide="${link.icon}" class="w-4 h-4 opacity-50"></i>
@@ -2552,10 +2775,104 @@
                     <i data-lucide="external-link" class="w-3 h-3 opacity-30"></i>
                 </a>
             `).join('');
+            const feedbackHtml = `
+                <div class="border-t border-white/10 my-1"></div>
+                <button onclick="openFeedbackModal()"
+                        class="w-full text-left px-6 py-3 text-xs uppercase tracking-widest font-bold hover:bg-white/10 transition-colors flex items-center gap-3">
+                    <i data-lucide="message-square" class="w-4 h-4 opacity-50"></i>
+                    <span class="flex-1">意见反馈</span>
+                </button>
+            `;
+            container.innerHTML = linksHtml + feedbackHtml;
             lucide.createIcons();
         })();
 
-        ['donate-modal', 'bookmark-modal', 'todo-modal', 'settings-modal', 'group-name-modal', 'delete-group-modal', 'delete-note-modal'].forEach((id) => {
+        // ===== 意见反馈（Formspree） =====
+        function openFeedbackModal() {
+            resetFeedbackForm();
+            toggleModal('feedback-modal');
+            setTimeout(() => document.getElementById('fb-content').focus(), 100);
+        }
+        function resetFeedbackForm() {
+            document.getElementById('fb-content').value = '';
+            document.getElementById('fb-nickname').value = '';
+            document.getElementById('fb-email').value = '';
+            document.getElementById('fb-category').value = 'bug';
+            const msg = document.getElementById('fb-msg');
+            msg.classList.remove('opacity-100');
+            msg.classList.add('opacity-0');
+        }
+        function showFbMsg(text, kind) {
+            const msg = document.getElementById('fb-msg');
+            msg.textContent = text;
+            msg.classList.add('opacity-100');
+            msg.classList.remove('opacity-0');
+            msg.style.color = kind === 'ok' ? '#86efac' : kind === 'err' ? '#fca5a5' : '#fde68a';
+        }
+        async function submitFeedback() {
+            const category = document.getElementById('fb-category').value;
+            const content  = document.getElementById('fb-content').value.trim();
+            const nickname = document.getElementById('fb-nickname').value.trim();
+            const email    = document.getElementById('fb-email').value.trim();
+            const btn = document.getElementById('fb-submit');
+
+            if (!content) { showFbMsg('请填写反馈内容', 'warn'); return; }
+
+            btn.disabled = true;
+            btn.innerText = '发送中…';
+            // 5 秒超时：AbortController 掐 fetch + 保底 timer 强制关窗（防止 fetch 异常卡住）
+            const controller = new AbortController();
+            const FEEDBACK_TIMEOUT_MS = 5000;
+            const timeoutId = setTimeout(() => controller.abort(), FEEDBACK_TIMEOUT_MS);
+            const hardCloseId = setTimeout(() => {
+                toggleModal('feedback-modal');
+                resetFeedbackForm();
+                btn.disabled = false;
+                btn.innerText = '发送';
+            }, FEEDBACK_TIMEOUT_MS + 500);
+            try {
+                const res = await fetch(FEEDBACK_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({
+                        '类别': category,
+                        '反馈内容': content,
+                        '昵称': nickname || '(未填写)',
+                        '邮箱': email || '(未填写)',
+                        '来源': location.href,
+                        _subject: `[Ayu Tab 反馈] ${category === 'bug' ? 'Bug 问题' : category === 'feature' ? '功能建议' : '其他'}`,
+                        _template: 'table',
+                        _captcha: 'false'
+                    }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                clearTimeout(hardCloseId);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                showFbMsg('感谢反馈，已送达', 'ok');
+                setTimeout(() => {
+                    toggleModal('feedback-modal');
+                    resetFeedbackForm();
+                }, 1500);
+            } catch (e) {
+                clearTimeout(timeoutId);
+                clearTimeout(hardCloseId);
+                if (e.name === 'AbortError') {
+                    showFbMsg('网络较慢，反馈已放弃发送', 'err');
+                    setTimeout(() => {
+                        toggleModal('feedback-modal');
+                        resetFeedbackForm();
+                    }, 800);
+                } else {
+                    showFbMsg('发送失败：' + e.message, 'err');
+                }
+            } finally {
+                btn.disabled = false;
+                btn.innerText = '发送';
+            }
+        }
+
+        ['donate-modal', 'bookmark-modal', 'todo-modal', 'settings-modal', 'group-name-modal', 'delete-group-modal', 'delete-note-modal', 'feedback-modal'].forEach((id) => {
             const modal = document.getElementById(id);
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) toggleModal(id);
@@ -3110,6 +3427,96 @@
             document.getElementById('note-toolbar-dropdown').classList.toggle('hidden');
         }
         bindOutsideClick('note-toolbar-dropdown', 'note-toolbar-toggle');
+
+        function toggleNoteExportMenu(e) {
+            if (e) e.stopPropagation();
+            document.getElementById('note-export-dropdown').classList.toggle('hidden');
+        }
+        bindOutsideClick('note-export-dropdown', 'note-export-toggle');
+
+        // ===== 笔记导出（txt / md / html / doc） =====
+        function exportCurrentNote(fmt) {
+            document.getElementById('note-export-dropdown').classList.add('hidden');
+            const note = getCurrentNote();
+            if (!note) return;
+            const safeTitle = (note.title || '未命名').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
+            const html = note.content || '';
+            let blob, ext;
+            if (fmt === 'txt') {
+                blob = new Blob([htmlToPlainText(html)], { type: 'text/plain;charset=utf-8' });
+                ext = 'txt';
+            } else if (fmt === 'md') {
+                blob = new Blob([htmlToMarkdown(html)], { type: 'text/markdown;charset=utf-8' });
+                ext = 'md';
+            } else if (fmt === 'html') {
+                const full = `<!DOCTYPE html>\n<html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(note.title || '笔记')}</title><style>body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;line-height:1.7;color:#222}</style></head><body><h1>${escapeHtml(note.title || '')}</h1>\n${html}\n</body></html>`;
+                blob = new Blob([full], { type: 'text/html;charset=utf-8' });
+                ext = 'html';
+            } else if (fmt === 'doc') {
+                // Word 可直接打开这种带 MIME 头的 HTML 文档
+                const full = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${escapeHtml(note.title || '笔记')}</title></head><body><h1>${escapeHtml(note.title || '')}</h1>\n${html}\n</body></html>`;
+                blob = new Blob([full], { type: 'application/msword;charset=utf-8' });
+                ext = 'doc';
+            } else {
+                return;
+            }
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${safeTitle}.${ext}`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        function escapeHtml(s) {
+            return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        // HTML → 纯文本：解码实体 + 块级元素转换行
+        function htmlToPlainText(html) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = (html || '')
+                .replace(/<(br|\/p|\/div|\/h[1-6]|\/li|\/tr)\s*\/?>/gi, '$&\n')
+                .replace(/<(p|div|h[1-6]|li|tr)(\s[^>]*)?>/gi, '\n$&');
+            return (tmp.textContent || '').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+        }
+
+        // HTML → Markdown：覆盖常见富文本标签；未识别的直接取文本
+        function htmlToMarkdown(html) {
+            const doc = new DOMParser().parseFromString('<div id="r">' + (html || '') + '</div>', 'text/html');
+            function walk(node) {
+                if (node.nodeType === Node.TEXT_NODE) return node.textContent;
+                if (node.nodeType !== Node.ELEMENT_NODE) return '';
+                const tag = node.tagName.toLowerCase();
+                const inner = Array.from(node.childNodes).map(walk).join('');
+                switch (tag) {
+                    case 'h1': return `\n# ${inner}\n\n`;
+                    case 'h2': return `\n## ${inner}\n\n`;
+                    case 'h3': return `\n### ${inner}\n\n`;
+                    case 'h4': return `\n#### ${inner}\n\n`;
+                    case 'h5': return `\n##### ${inner}\n\n`;
+                    case 'h6': return `\n###### ${inner}\n\n`;
+                    case 'p':  return `${inner}\n\n`;
+                    case 'br': return '\n';
+                    case 'b': case 'strong': return `**${inner}**`;
+                    case 'i': case 'em':     return `*${inner}*`;
+                    case 'u':                return inner; // markdown 无原生下划线
+                    case 's': case 'strike': case 'del': return `~~${inner}~~`;
+                    case 'code': return '`' + inner + '`';
+                    case 'pre':  return '\n```\n' + inner + '\n```\n\n';
+                    case 'a':    return `[${inner}](${node.getAttribute('href') || ''})`;
+                    case 'img':  return `![${node.getAttribute('alt') || ''}](${node.getAttribute('src') || ''})`;
+                    case 'ul':   return '\n' + Array.from(node.children).map(li => `- ${walk(li).trim()}`).join('\n') + '\n\n';
+                    case 'ol':   return '\n' + Array.from(node.children).map((li, i) => `${i + 1}. ${walk(li).trim()}`).join('\n') + '\n\n';
+                    case 'li':   return inner;
+                    case 'blockquote': return '\n' + inner.split('\n').map(l => `> ${l}`).join('\n') + '\n\n';
+                    case 'hr':   return '\n---\n\n';
+                    case 'div':  return inner + '\n';
+                    default:     return inner;
+                }
+            }
+            return walk(doc.getElementById('r')).replace(/\n{3,}/g, '\n\n').trim() + '\n';
+        }
 
         // ===== 面板显示控制 =====
         const PANEL_KEYS = ['shortcuts', 'note', 'todo', 'hitokoto'];
@@ -4208,12 +4615,8 @@
                 }
             }
 
-            // 双击宠物头部位置（页面任意处）回到分栏：长按 1 秒可解除固定
-            el.addEventListener('contextmenu', e => {
-                if (el.dataset.pinned !== 'true') return;
-                e.preventDefault();
-                unpinPet();
-            });
+            // 禁用宠物上的右键菜单（macOS 触控板两指点按易误触，旧版会 unpin 把宠物送到 (0,0) 左上角）
+            el.addEventListener('contextmenu', e => e.preventDefault());
 
             // 引导交互：先填名字 → 解锁动物按钮 → 点击动物完成初始化
             document.querySelectorAll('#pet-onboard .pet-onboard-card').forEach(c => {
