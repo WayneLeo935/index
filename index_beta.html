@@ -901,6 +901,10 @@
                         </button>
                     </div>
                 </div>
+                <!-- 分类标签栏 -->
+                <div class="flex items-center gap-2 pt-1 mb-4 pb-3 border-b border-white/10 flex-shrink-0">
+                    <div id="todo-tabs" class="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0"></div>
+                </div>
                 <div class="flex-1 overflow-y-auto no-scrollbar flex flex-col min-h-0">
                     <div id="todo-list" class="space-y-1"></div>
                     <!-- 已完成折叠区 -->
@@ -1055,6 +1059,25 @@
     <div id="note-ctx-menu" class="hidden fixed z-50 apple-glass rounded-2xl p-2 shadow-xl min-w-[120px]">
         <button onclick="startRenameNoteFromCtx()" class="w-full text-left px-3 py-2 text-[11px] uppercase tracking-[0.08em] font-bold rounded-xl hover:bg-white/10 transition-all">重命名</button>
         <button id="note-ctx-delete-btn" onclick="confirmDeleteNote()" class="w-full text-left px-3 py-2 text-[11px] uppercase tracking-[0.08em] font-bold rounded-xl hover:bg-red-500/20 text-red-300 transition-all">删除</button>
+    </div>
+
+    <!-- 待办分类右键菜单 -->
+    <div id="todo-group-ctx-menu" class="hidden fixed z-50 apple-glass rounded-2xl p-2 shadow-xl min-w-[120px]">
+        <button onclick="startRenameTodoGroupFromCtx()" class="w-full text-left px-3 py-2 text-[11px] uppercase tracking-[0.08em] font-bold rounded-xl hover:bg-white/10 transition-all">重命名</button>
+        <button id="todo-group-ctx-delete-btn" onclick="confirmDeleteTodoGroup()" class="w-full text-left px-3 py-2 text-[11px] uppercase tracking-[0.08em] font-bold rounded-xl hover:bg-red-500/20 text-red-300 transition-all">删除</button>
+    </div>
+
+    <!-- 删除待办分类确认 modal -->
+    <div id="delete-todo-group-modal" class="modal">
+        <div class="apple-glass p-12 rounded-[4rem] max-w-sm w-full relative modal-content">
+            <button onclick="toggleModal('delete-todo-group-modal')" class="modal-close"><i data-lucide="x"></i></button>
+            <h3 class="text-2xl font-light mb-4 tracking-tight">删除分类</h3>
+            <p class="text-sm opacity-50 mb-8 leading-relaxed font-light">确定删除 <span id="del-todo-group-title" class="text-white opacity-100 font-semibold"></span> 吗？该分类下的所有待办都会一并删除。</p>
+            <div class="flex gap-4">
+                <button onclick="toggleModal('delete-todo-group-modal')" class="flex-1 bg-white/5 border border-white/10 py-5 rounded-[2rem] text-[10px] uppercase tracking-widest font-black opacity-50">取消</button>
+                <button onclick="executeDeleteTodoGroup()" class="flex-1 bg-red-500/80 hover:bg-red-500 text-white font-black py-5 rounded-[2rem] text-[10px] uppercase tracking-widest transition-all">确认删除</button>
+            </div>
+        </div>
     </div>
 
     <!-- 待办优先级选择菜单 -->
@@ -1338,10 +1361,19 @@ ${body}</DL><p>
 
         // ===== 待办系统 =====
         const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
+        const DEFAULT_TODO_GROUP_ID = 'tdg-default';
 
         function migrateTodos() {
             const saved = localStorage.getItem('todos.active');
-            if (saved) { try { return JSON.parse(saved); } catch(e) {} }
+            if (saved) {
+                try {
+                    const arr = JSON.parse(saved);
+                    if (Array.isArray(arr)) {
+                        // 旧版待办无 groupId，回填到默认分类
+                        return arr.map(t => ({ ...t, groupId: t.groupId || DEFAULT_TODO_GROUP_ID }));
+                    }
+                } catch(e) {}
+            }
             let old = null;
             try { old = JSON.parse(localStorage.getItem('todos_v7') || 'null'); }
             catch(e) { console.warn('[todos] legacy parse failed, skipping migration', e); }
@@ -1352,14 +1384,32 @@ ${body}</DL><p>
                     completed: !!t.completed,
                     priority: 'medium',
                     dueDate: null,
+                    groupId: DEFAULT_TODO_GROUP_ID,
                     createdAt: typeof t.id === 'number' ? t.id : Date.now(),
                     completedAt: t.completed ? Date.now() : null
                 }));
             }
-            return [{ id: 'td-default', text: '开始设计第一稿', completed: false, priority: 'medium', dueDate: null, createdAt: Date.now(), completedAt: null }];
+            return [{ id: 'td-default', text: '开始设计第一稿', completed: false, priority: 'medium', dueDate: null, groupId: DEFAULT_TODO_GROUP_ID, createdAt: Date.now(), completedAt: null }];
+        }
+
+        function loadTodoGroups() {
+            const saved = localStorage.getItem('todos.groups');
+            if (saved) {
+                try {
+                    const arr = JSON.parse(saved);
+                    if (Array.isArray(arr) && arr.length > 0) return arr;
+                } catch(e) {}
+            }
+            return [{ id: DEFAULT_TODO_GROUP_ID, name: '默认待办' }];
         }
 
         let todos = migrateTodos();
+        let todoGroups = loadTodoGroups();
+        let currentTodoGroupId = (() => {
+            const saved = localStorage.getItem('todos.currentGroup');
+            if (saved && todoGroups.some(g => g.id === saved)) return saved;
+            return todoGroups[0].id;
+        })();
         let todoManualOrder = (() => {
             try { return JSON.parse(localStorage.getItem('todos.manualOrder') || 'false'); }
             catch(e) { return false; }
@@ -1367,6 +1417,11 @@ ${body}</DL><p>
         let completedSectionOpen = false;
         let currentTodoPriority = 'medium';
         let todoDragSrcId = null;
+        let todoGroupCtxTargetId = null;
+        let todoGroupLongPressTimer = null;
+
+        function saveTodoGroups() { localStorage.setItem('todos.groups', JSON.stringify(todoGroups)); }
+        function saveCurrentTodoGroup() { localStorage.setItem('todos.currentGroup', currentTodoGroupId); }
 
         // 书签网格：动态列数，每页 2 行；每页填满 cols * 2 个书签后翻下一页
         let currentCols = 4;
@@ -1636,7 +1691,7 @@ ${body}</DL><p>
                 const active = g.id === currentGroupId ? ' active' : '';
                 return `<button id="group-tab-${g.id}" class="group-tab${active}" onclick="switchGroup('${g.id}')" ondblclick="startRenameGroup('${g.id}', event)" oncontextmenu="showGroupCtxMenu(event,'${g.id}')" ondragover="onGroupTabDragOver(event,'${g.id}')" ondragleave="onGroupTabDragLeave(event)" ondrop="onGroupTabDrop(event,'${g.id}')" data-gid="${g.id}">${g.name}</button>`;
             }).join('');
-            html += `<button onclick="openNewGroupModal()" class="ml-auto flex-shrink-0 opacity-30 hover:opacity-70 transition-opacity p-1 rounded-lg hover:bg-white/10" title="新建分组"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>`;
+            html += `<button onclick="openNewGroupModal()" class="flex-shrink-0 ml-1 p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity hover:bg-white/10" title="新建分组"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>`;
             container.innerHTML = html;
             lucide.createIcons();
         }
@@ -1784,26 +1839,40 @@ ${body}</DL><p>
             try { archived = JSON.parse(localStorage.getItem('todos.completed') || '[]'); } catch (_) {}
             archived.sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
 
+            const groupName = (gid) => {
+                const g = todoGroups.find(x => x.id === (gid || DEFAULT_TODO_GROUP_ID));
+                return g ? g.name : '默认待办';
+            };
+
             const lines = [];
             lines.push('# 待办清单');
             lines.push(`生成时间：${fmtDateTime(Date.now())}`);
             lines.push('');
             lines.push(`## 进行中（${active.length}）`);
             lines.push('');
-            if (active.length === 0) lines.push('（无）');
-            active.forEach(t => {
-                const parts = [PRI_TAG[t.priority] || '[中]', t.text];
-                if (t.dueDate) parts.push(`（截止：${t.dueDate}）`);
-                lines.push(`- ${parts.join(' ')}`);
-            });
-            lines.push('');
+            if (active.length === 0) {
+                lines.push('（无）');
+            } else {
+                todoGroups.forEach(g => {
+                    const items = active.filter(t => (t.groupId || DEFAULT_TODO_GROUP_ID) === g.id);
+                    if (items.length === 0) return;
+                    lines.push(`### ${g.name}`);
+                    items.forEach(t => {
+                        const parts = [PRI_TAG[t.priority] || '[中]', t.text];
+                        if (t.dueDate) parts.push(`（截止：${t.dueDate}）`);
+                        lines.push(`- ${parts.join(' ')}`);
+                    });
+                    lines.push('');
+                });
+            }
             lines.push(`## 已完成（近 30 天，${archived.length}）`);
             lines.push('');
             if (archived.length === 0) lines.push('（无）');
             archived.forEach(t => {
                 const when = fmtDate(t.completedAt);
                 const pri = PRI_TAG[t.priority] || '[中]';
-                lines.push(`- [${when}] ${pri} ${t.text}`);
+                const gn = groupName(t.groupId);
+                lines.push(`- [${when}] ${pri} ${t.text}（${gn}）`);
             });
             lines.push('');
 
@@ -1819,7 +1888,7 @@ ${body}</DL><p>
         function archiveCompleted(todo) {
             let arc = JSON.parse(localStorage.getItem('todos.completed') || '[]');
             arc = arc.filter(a => a.id !== todo.id);
-            arc.push({ id: todo.id, text: todo.text, priority: todo.priority, completedAt: todo.completedAt });
+            arc.push({ id: todo.id, text: todo.text, priority: todo.priority, groupId: todo.groupId || DEFAULT_TODO_GROUP_ID, completedAt: todo.completedAt });
             const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
             arc = arc.filter(a => a.completedAt > cutoff);
             localStorage.setItem('todos.completed', JSON.stringify(arc));
@@ -1906,9 +1975,147 @@ ${body}</DL><p>
             if (!document.getElementById('todo-priority-menu').contains(e.target)) hideTodoPriorityMenu();
         });
 
+        function renderTodoGroupTabs() {
+            const container = document.getElementById('todo-tabs');
+            if (!container) return;
+            container.innerHTML = todoGroups.map(g => {
+                const isActive = g.id === currentTodoGroupId;
+                return `<div
+                    id="todo-group-tab-${g.id}"
+                    class="group-tab flex-shrink-0${isActive ? ' active' : ''}"
+                    onclick="switchTodoGroup('${g.id}')"
+                    ondblclick="startRenameTodoGroup('${g.id}', event)"
+                    oncontextmenu="showTodoGroupCtxMenu('${g.id}', event)"
+                    onpointerdown="onTodoGroupTabPointerDown('${g.id}', event)"
+                    onpointerup="onTodoGroupTabPointerUp()"
+                    onpointerleave="onTodoGroupTabPointerUp()"
+                >${g.name}</div>`;
+            }).join('') +
+            `<button onclick="createTodoGroup()" class="flex-shrink-0 ml-1 p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity hover:bg-white/10" title="新建分类">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            </button>`;
+            lucide.createIcons();
+            const activeTab = document.getElementById('todo-group-tab-' + currentTodoGroupId);
+            if (activeTab) activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        }
+
+        function switchTodoGroup(id) {
+            if (!todoGroups.some(g => g.id === id)) return;
+            currentTodoGroupId = id;
+            saveCurrentTodoGroup();
+            renderTodoGroupTabs();
+            renderTodos();
+        }
+
+        function createTodoGroup() {
+            const g = { id: 'tdg-' + Date.now(), name: '新分类' };
+            todoGroups.push(g);
+            saveTodoGroups();
+            currentTodoGroupId = g.id;
+            saveCurrentTodoGroup();
+            renderTodoGroupTabs();
+            renderTodos();
+            setTimeout(() => startRenameTodoGroup(g.id, { stopPropagation: () => {} }), 50);
+        }
+
+        function startRenameTodoGroup(id, e) {
+            if (e && e.stopPropagation) e.stopPropagation();
+            const tab = document.getElementById('todo-group-tab-' + id);
+            const g = todoGroups.find(x => x.id === id);
+            if (!tab || !g) return;
+            const oldName = g.name;
+            tab.contentEditable = 'true';
+            tab.focus();
+            const range = document.createRange();
+            range.selectNodeContents(tab);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+            const finish = () => {
+                tab.contentEditable = 'false';
+                const newName = tab.innerText.trim() || oldName;
+                g.name = newName;
+                tab.innerText = newName;
+                saveTodoGroups();
+            };
+            tab.onblur = finish;
+            tab.onkeydown = (ev) => {
+                if (ev.key === 'Enter') { ev.preventDefault(); tab.blur(); }
+                if (ev.key === 'Escape') { tab.innerText = oldName; tab.onblur = null; tab.blur(); }
+            };
+        }
+
+        function startRenameTodoGroupFromCtx() {
+            hideTodoGroupCtxMenu();
+            setTimeout(() => startRenameTodoGroup(todoGroupCtxTargetId, { stopPropagation: () => {} }), 50);
+        }
+
+        function showTodoGroupCtxMenu(id, e) {
+            e.preventDefault();
+            e.stopPropagation();
+            todoGroupCtxTargetId = id;
+            const menu = document.getElementById('todo-group-ctx-menu');
+            const delBtn = document.getElementById('todo-group-ctx-delete-btn');
+            const canDelete = todoGroups.length > 1;
+            delBtn.style.opacity = canDelete ? '1' : '0.3';
+            delBtn.style.pointerEvents = canDelete ? 'auto' : 'none';
+            delBtn.title = canDelete ? '' : '至少保留一个分类';
+            menu.style.left = e.clientX + 'px';
+            menu.style.top  = e.clientY + 'px';
+            menu.classList.remove('hidden');
+        }
+
+        function hideTodoGroupCtxMenu() {
+            document.getElementById('todo-group-ctx-menu').classList.add('hidden');
+        }
+
+        function onTodoGroupTabPointerDown(id, e) {
+            if (e.button !== 0) return;
+            todoGroupLongPressTimer = setTimeout(() => showTodoGroupCtxMenu(id, e), 500);
+        }
+        function onTodoGroupTabPointerUp() { clearTimeout(todoGroupLongPressTimer); }
+
+        function confirmDeleteTodoGroup() {
+            hideTodoGroupCtxMenu();
+            if (todoGroups.length <= 1) return;
+            const g = todoGroups.find(x => x.id === todoGroupCtxTargetId);
+            if (!g) return;
+            document.getElementById('del-todo-group-title').innerText = `"${g.name}"`;
+            toggleModal('delete-todo-group-modal');
+        }
+
+        function executeDeleteTodoGroup() {
+            toggleModal('delete-todo-group-modal');
+            if (todoGroups.length <= 1) return;
+            const idx = todoGroups.findIndex(x => x.id === todoGroupCtxTargetId);
+            if (idx === -1) return;
+            const targetId = todoGroupCtxTargetId;
+            // 删除该分类下的所有待办（包括已归档的已完成项）
+            todos = todos.filter(t => t.groupId !== targetId);
+            let arc = [];
+            try { arc = JSON.parse(localStorage.getItem('todos.completed') || '[]'); } catch(e) {}
+            arc = arc.filter(a => a.groupId !== targetId);
+            localStorage.setItem('todos.completed', JSON.stringify(arc));
+            todoGroups.splice(idx, 1);
+            saveTodoGroups();
+            if (currentTodoGroupId === targetId) {
+                currentTodoGroupId = todoGroups[Math.max(0, idx - 1)].id;
+                saveCurrentTodoGroup();
+            }
+            saveTodos();
+            renderTodoGroupTabs();
+            renderTodos();
+        }
+
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('todo-group-ctx-menu');
+            if (menu && !menu.contains(e.target)) hideTodoGroupCtxMenu();
+        });
+
         function renderTodos() {
-            const active = todos.filter(t => !t.completed);
-            const done   = todos.filter(t => t.completed);
+            const inGroup = todos.filter(t => (t.groupId || DEFAULT_TODO_GROUP_ID) === currentTodoGroupId);
+            const active = inGroup.filter(t => !t.completed);
+            const done   = inGroup.filter(t => t.completed);
             const sorted = getSortedActive(active);
 
             const list = document.getElementById('todo-list');
@@ -2013,6 +2220,7 @@ ${body}</DL><p>
                 completed: false,
                 priority: currentTodoPriority,
                 dueDate: document.getElementById('todo-due').value || null,
+                groupId: currentTodoGroupId,
                 createdAt: Date.now(),
                 completedAt: null
             };
@@ -2111,6 +2319,8 @@ ${body}</DL><p>
             const srcIdx = todos.findIndex(t => t.id === todoDragSrcId);
             const tgtIdx = todos.findIndex(t => t.id === targetId);
             if (srcIdx === -1 || tgtIdx === -1) return;
+            // 仅允许同分类内拖动排序
+            if ((todos[srcIdx].groupId || DEFAULT_TODO_GROUP_ID) !== (todos[tgtIdx].groupId || DEFAULT_TODO_GROUP_ID)) return;
             const el = document.querySelector('.todo-item[data-id="' + targetId + '"]');
             let before = true;
             if (el) {
@@ -2872,7 +3082,7 @@ ${body}</DL><p>
             }
         }
 
-        ['donate-modal', 'bookmark-modal', 'todo-modal', 'settings-modal', 'group-name-modal', 'delete-group-modal', 'delete-note-modal', 'feedback-modal'].forEach((id) => {
+        ['donate-modal', 'bookmark-modal', 'todo-modal', 'settings-modal', 'group-name-modal', 'delete-group-modal', 'delete-note-modal', 'delete-todo-group-modal', 'feedback-modal'].forEach((id) => {
             const modal = document.getElementById(id);
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) toggleModal(id);
@@ -4691,6 +4901,7 @@ ${body}</DL><p>
 
         window.onload = () => {
             renderGroupTabs();
+            renderTodoGroupTabs();
             renderTodos();
             applyPanelVisibility(); // 恢复面板开关状态，内部会触发 calcAndRenderBookmarks
             // ResizeObserver：快捷方式面板宽度变化时重新计算书签布局
