@@ -4096,13 +4096,28 @@ ${body}</DL><p>
 
         function getPetObstacleRects() {
             // 所有玻璃面板（搜索框 + 各分栏）都是宠物的禁区（视口坐标）
-            const SELECTORS = ['.search-container', '#panel-shortcuts', '#panel-note-col', '#panel-todo-col'];
+            // 搜索框额外横向外扩：pill 形 backdrop-filter 的 24px blur kernel 会采样边缘外的像素，
+            // 宠物贴得太近会在搜索框右缘内侧投出蓝色虚影。向外扩 28px 让宠物始终离开模糊半径之外。
+            const SELECTORS = [
+                { sel: '.search-container', padX: 28, padY: 0 },
+                { sel: '#panel-shortcuts', padX: 0, padY: 0 },
+                { sel: '#panel-note-col', padX: 0, padY: 0 },
+                { sel: '#panel-todo-col', padX: 0, padY: 0 },
+            ];
             const rects = [];
-            SELECTORS.forEach(sel => {
+            SELECTORS.forEach(({ sel, padX, padY }) => {
                 document.querySelectorAll(sel).forEach(node => {
                     if (!node.offsetParent && node !== document.documentElement) return;
                     const r = node.getBoundingClientRect();
-                    if (r.width > 0 && r.height > 0) rects.push(r);
+                    if (r.width <= 0 || r.height <= 0) return;
+                    rects.push({
+                        left: r.left - padX,
+                        top: r.top - padY,
+                        right: r.right + padX,
+                        bottom: r.bottom + padY,
+                        width: r.width + padX * 2,
+                        height: r.height + padY * 2,
+                    });
                 });
             });
             return rects;
