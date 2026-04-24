@@ -1121,10 +1121,30 @@
                         </button>
                     </div>
                 </div>
-                <!-- 截止日期 -->
+                <!-- 截止日期 / 时间 -->
                 <div class="space-y-2">
-                    <label class="text-[9px] uppercase tracking-[0.3em] font-black opacity-30 ml-4">截止日期（可选）</label>
-                    <input type="date" id="todo-due" class="apple-input font-light" style="color-scheme:dark">
+                    <label class="text-[9px] uppercase tracking-[0.3em] font-black opacity-30 ml-4">截止（日期 / 时间均可选）</label>
+                    <div class="flex gap-3">
+                        <div class="relative flex-1 min-w-0">
+                            <input type="text" id="todo-due" placeholder="yyyy/mm/dd" inputmode="numeric" maxlength="10" autocomplete="off" class="apple-input font-light w-full pr-11" oninput="formatTodoDueInput(event)">
+                            <!-- 隐藏的原生 date 输入用于弹出日历 picker -->
+                            <input type="date" id="todo-due-picker" tabindex="-1" aria-hidden="true" style="position:absolute; right:0.5rem; top:50%; transform:translateY(-50%); width:1px; height:1px; opacity:0; pointer-events:none;" onchange="onTodoDuePickerChange(event)">
+                            <button type="button" onclick="openTodoDuePicker()" title="选择日期" class="absolute right-3 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 transition-opacity p-1">
+                                <i data-lucide="calendar" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                        <div class="relative w-[7.5rem] flex-shrink-0">
+                            <input type="text" id="todo-due-time" placeholder="HH:MM" inputmode="numeric" maxlength="5" autocomplete="off" class="apple-input font-light w-full pr-11" oninput="formatTodoDueTimeInput(event)">
+                            <button type="button" onclick="openTodoDueTimePicker(event)" title="选择时间" class="absolute right-3 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 transition-opacity p-1">
+                                <i data-lucide="clock" class="w-4 h-4"></i>
+                            </button>
+                            <!-- 自定义时间 picker：两列 hh / mm；向下展开，白底配合原生日历 -->
+                            <div id="todo-time-picker" class="hidden absolute right-0 top-full mt-2 z-30 bg-white text-gray-800 rounded-lg shadow-[0_10px_30px_rgba(0,0,0,0.3)] py-1 w-[10rem] flex">
+                                <div id="todo-time-hours" class="flex-1 flex flex-col max-h-48 overflow-y-auto no-scrollbar"></div>
+                                <div id="todo-time-mins" class="flex-1 flex flex-col max-h-48 overflow-y-auto no-scrollbar"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="pt-2">
                     <button onclick="confirmAddTodo()" class="w-full bg-white text-black font-black py-5 rounded-[2rem]">添加任务</button>
@@ -1859,7 +1879,10 @@ ${body}</DL><p>
                     lines.push(`### ${g.name}`);
                     items.forEach(t => {
                         const parts = [PRI_TAG[t.priority] || '[中]', t.text];
-                        if (t.dueDate) parts.push(`（截止：${t.dueDate}）`);
+                        if (t.dueDate) {
+                            const due = t.dueTime ? `${t.dueDate} ${t.dueTime}` : t.dueDate;
+                            parts.push(`（截止：${due}）`);
+                        }
                         lines.push(`- ${parts.join(' ')}`);
                     });
                     lines.push('');
@@ -1894,29 +1917,52 @@ ${body}</DL><p>
             localStorage.setItem('todos.completed', JSON.stringify(arc));
         }
 
+        // 把 dueDate + dueTime 合成为可比较的时间戳；未设时间时视为当天 23:59
+        function getTodoDueMs(t) {
+            if (!t.dueDate) return null;
+            const iso = t.dueTime ? `${t.dueDate}T${t.dueTime}` : `${t.dueDate}T23:59`;
+            const ms = new Date(iso).getTime();
+            return Number.isFinite(ms) ? ms : null;
+        }
+
         function getSortedActive(active) {
             if (todoManualOrder) return active;
             return [...active].sort((a, b) => {
                 const pd = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
                 if (pd !== 0) return pd;
-                if (!a.dueDate && !b.dueDate) return 0;
-                if (!a.dueDate) return 1;
-                if (!b.dueDate) return -1;
-                return new Date(a.dueDate) - new Date(b.dueDate);
+                const ad = getTodoDueMs(a);
+                const bd = getTodoDueMs(b);
+                if (ad == null && bd == null) return 0;
+                if (ad == null) return 1;
+                if (bd == null) return -1;
+                return ad - bd;
             });
         }
 
-        function isDueSoon(dueDate) {
-            if (!dueDate) return false;
-            const diff = new Date(dueDate) - new Date();
+        function isDueSoon(t) {
+            const ms = getTodoDueMs(t);
+            if (ms == null) return false;
+            const diff = ms - Date.now();
             return diff >= 0 && diff < 24 * 60 * 60 * 1000;
         }
 
+        function formatTodoDueLabel(t) {
+            if (!t.dueDate) return '';
+            const d = new Date(t.dueTime ? `${t.dueDate}T${t.dueTime}` : `${t.dueDate}T00:00`);
+            if (!Number.isFinite(d.getTime())) return '';
+            const date = d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+            if (!t.dueTime) return date;
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            return `${date} ${hh}:${mm}`;
+        }
+
         function buildTodoItemHtml(t, isDone) {
-            const dueSoon = !isDone && isDueSoon(t.dueDate);
+            const dueSoon = !isDone && isDueSoon(t);
             const dotColor = { high: 'bg-red-500', medium: 'bg-amber-400', low: 'bg-sky-400' }[t.priority] || 'bg-white/30';
             const priorityDot = isDone ? '' : `<button onclick="showTodoPriorityMenu(event, '${t.id}')" class="w-1.5 h-1.5 rounded-full ${dotColor} flex-shrink-0 mt-[6px] cursor-pointer hover:scale-150 transition-transform" title="修改优先级"></button>`;
-            const dueDateHtml = (t.dueDate && !isDone) ? `<span class="block text-[9px] font-black tracking-widest mt-0.5 ${dueSoon ? 'text-orange-400' : 'opacity-30'}">${new Date(t.dueDate).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}</span>` : '';
+            const dueLabel = formatTodoDueLabel(t);
+            const dueDateHtml = (dueLabel && !isDone) ? `<span class="flex-shrink-0 ml-2 text-sm font-bold tracking-wide whitespace-nowrap ${dueSoon ? 'text-orange-400' : 'opacity-50'}">${dueLabel}</span>` : '';
             const dragAttrs = isDone ? '' : `draggable="true" ondragstart="onTodoDragStart(event,'${t.id}')" ondragover="onTodoDragOver(event,'${t.id}')" ondragleave="onTodoDragLeave(event)" ondrop="onTodoDrop(event,'${t.id}')" ondragend="onTodoDragEnd()"`;
             const highBorder = (t.priority === 'high' && !isDone) ? 'border-l-2 border-red-500/60' : '';
             return `<div class="todo-item flex items-start justify-between gap-2 group/item px-3 py-2.5 rounded-2xl hover:bg-white/5 transition-all ${isDone ? 'opacity-50' : ''} ${highBorder}" data-id="${t.id}" ${dragAttrs}>
@@ -1934,8 +1980,8 @@ ${body}</DL><p>
                                onpointerleave="cancelHoldComplete(event)"
                                onpointercancel="cancelHoldComplete(event)"><span class="todo-check-fill"></span></div>`
                     }
-                    <div class="flex-1 min-w-0">
-                        <span class="todo-text text-sm font-light tracking-wide leading-snug cursor-text outline-none ${isDone ? 'line-through opacity-60' : 'opacity-80'}" onclick="startEditTodo('${t.id}', event)">${t.text}</span>
+                    <div class="flex-1 min-w-0 flex items-start gap-2">
+                        <span class="todo-text text-sm font-light tracking-wide leading-snug cursor-text outline-none flex-1 min-w-0 break-words ${isDone ? 'line-through opacity-60' : 'opacity-80'}" onclick="startEditTodo('${t.id}', event)">${t.text}</span>
                         ${dueDateHtml}
                     </div>
                 </div>
@@ -2202,10 +2248,166 @@ ${body}</DL><p>
             });
         }
 
+        // 日期输入：只保留数字，自动补斜杠为 yyyy/mm/dd
+        function formatTodoDueInput(e) {
+            const input = e.target;
+            const prev = input.value;
+            const endedSlash = prev.endsWith('/');
+            const digits = prev.replace(/\D/g, '').slice(0, 8);
+            let out;
+            if (digits.length <= 4) {
+                out = digits + (endedSlash && digits.length === 4 ? '/' : '');
+            } else if (digits.length <= 6) {
+                out = digits.slice(0, 4) + '/' + digits.slice(4);
+                if (endedSlash && digits.length === 6) out += '/';
+            } else {
+                out = digits.slice(0, 4) + '/' + digits.slice(4, 6) + '/' + digits.slice(6);
+            }
+            input.value = out;
+        }
+
+        // 解析 yyyy/mm/dd → yyyy-mm-dd（内部存储/比较统一用 ISO 格式）
+        function parseTodoDueInput(v) {
+            if (!v) return null;
+            const m = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(v.trim());
+            if (!m) return null;
+            const y = m[1];
+            const mo = m[2].padStart(2, '0');
+            const d = m[3].padStart(2, '0');
+            const iso = `${y}-${mo}-${d}`;
+            const t = new Date(iso + 'T00:00');
+            return Number.isFinite(t.getTime()) ? iso : null;
+        }
+
+        // 调起原生日历；选中后把 ISO 值回填到 text 输入并格式化显示
+        function openTodoDuePicker() {
+            const picker = document.getElementById('todo-due-picker');
+            const text = document.getElementById('todo-due');
+            const cur = parseTodoDueInput(text.value);
+            if (cur) picker.value = cur;
+            if (typeof picker.showPicker === 'function') {
+                try { picker.showPicker(); return; } catch (e) {}
+            }
+            picker.focus(); picker.click();
+        }
+        function onTodoDuePickerChange(e) {
+            const v = e.target.value; // yyyy-mm-dd
+            if (!v) return;
+            const [y, mo, d] = v.split('-');
+            document.getElementById('todo-due').value = `${y}/${mo}/${d}`;
+        }
+
+        // 时间输入：只保留数字，自动补 : 为 HH:MM
+        function formatTodoDueTimeInput(e) {
+            const input = e.target;
+            const prev = input.value;
+            const endedColon = prev.endsWith(':');
+            const digits = prev.replace(/\D/g, '').slice(0, 4);
+            let out;
+            if (digits.length <= 2) {
+                out = digits + (endedColon && digits.length === 2 ? ':' : '');
+            } else {
+                out = digits.slice(0, 2) + ':' + digits.slice(2);
+            }
+            input.value = out;
+        }
+
+        // 解析 HH:MM → 规范化 HH:MM（无效返回 null）
+        function parseTodoDueTimeInput(v) {
+            if (!v) return null;
+            const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim());
+            if (!m) return null;
+            const h = parseInt(m[1], 10);
+            const mi = parseInt(m[2], 10);
+            if (h < 0 || h > 23 || mi < 0 || mi > 59) return null;
+            return String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0');
+        }
+
+        // 自定义时间 picker：左侧小时 0-23，右侧分钟 0-59。
+        // 初始只能选小时；选中小时后小时列锁定、分钟列解锁；选完分钟立即关闭 + 回填。
+        let _todoTimePickerHour = null;
+
+        function buildTodoTimePickerColumns() {
+            const hoursCol = document.getElementById('todo-time-hours');
+            const minsCol = document.getElementById('todo-time-mins');
+            if (!hoursCol || hoursCol.dataset.built === '1') return;
+            const btnCls = 'w-full text-center px-3 py-1.5 text-xs font-medium tracking-wider hover:bg-gray-100 transition-colors';
+            let hh = '';
+            for (let h = 0; h < 24; h++) {
+                hh += `<button type="button" data-h="${h}" onclick="pickTodoTimeHour(${h})" class="${btnCls}">${String(h).padStart(2,'0')}</button>`;
+            }
+            hoursCol.innerHTML = hh;
+            let mm = '';
+            for (let m = 0; m < 60; m++) {
+                mm += `<button type="button" data-m="${m}" onclick="pickTodoTimeMinute(${m})" class="${btnCls}">${String(m).padStart(2,'0')}</button>`;
+            }
+            minsCol.innerHTML = mm;
+            hoursCol.dataset.built = '1';
+        }
+
+        function openTodoDueTimePicker(e) {
+            if (e) e.stopPropagation();
+            buildTodoTimePickerColumns();
+            const dd = document.getElementById('todo-time-picker');
+            const hoursCol = document.getElementById('todo-time-hours');
+            const minsCol = document.getElementById('todo-time-mins');
+            _todoTimePickerHour = null;
+            // 小时可选，分钟锁住
+            hoursCol.classList.remove('opacity-40', 'pointer-events-none');
+            minsCol.classList.add('opacity-40', 'pointer-events-none');
+            // 清除高亮
+            hoursCol.querySelectorAll('button').forEach(b => b.classList.remove('bg-gray-200'));
+            minsCol.querySelectorAll('button').forEach(b => b.classList.remove('bg-gray-200'));
+            dd.classList.remove('hidden');
+            // 滚到当前时间附近
+            const cur = parseTodoDueTimeInput(document.getElementById('todo-due-time').value);
+            const now = new Date();
+            const h0 = cur ? parseInt(cur.split(':')[0], 10) : now.getHours();
+            const m0 = cur ? parseInt(cur.split(':')[1], 10) : now.getMinutes();
+            const hBtn = hoursCol.querySelector(`[data-h="${h0}"]`);
+            const mBtn = minsCol.querySelector(`[data-m="${m0}"]`);
+            if (hBtn) hoursCol.scrollTop = Math.max(0, hBtn.offsetTop - hoursCol.clientHeight / 2);
+            if (mBtn) minsCol.scrollTop = Math.max(0, mBtn.offsetTop - minsCol.clientHeight / 2);
+        }
+
+        function pickTodoTimeHour(h) {
+            _todoTimePickerHour = h;
+            const hoursCol = document.getElementById('todo-time-hours');
+            const minsCol = document.getElementById('todo-time-mins');
+            hoursCol.querySelectorAll('button').forEach(b => {
+                b.classList.toggle('bg-gray-200', parseInt(b.dataset.h, 10) === h);
+            });
+            // 小时锁定，分钟解锁
+            hoursCol.classList.add('opacity-40', 'pointer-events-none');
+            minsCol.classList.remove('opacity-40', 'pointer-events-none');
+        }
+
+        function pickTodoTimeMinute(m) {
+            if (_todoTimePickerHour == null) return;
+            const t = String(_todoTimePickerHour).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+            document.getElementById('todo-due-time').value = t;
+            closeTodoDueTimePicker();
+        }
+
+        function closeTodoDueTimePicker() {
+            const dd = document.getElementById('todo-time-picker');
+            if (dd) dd.classList.add('hidden');
+        }
+
+        // 点击外部关闭
+        document.addEventListener('click', (e) => {
+            const dd = document.getElementById('todo-time-picker');
+            if (!dd || dd.classList.contains('hidden')) return;
+            if (!dd.contains(e.target) && !e.target.closest('[onclick*="openTodoDueTimePicker"]')) {
+                closeTodoDueTimePicker();
+            }
+        });
+
         function addTodo() {
             currentTodoPriority = 'medium';
             document.getElementById('todo-input').value = '';
             document.getElementById('todo-due').value = '';
+            document.getElementById('todo-due-time').value = '';
             setTodoPriority('medium');
             toggleModal('todo-modal');
             setTimeout(() => document.getElementById('todo-input').focus(), 100);
@@ -2214,12 +2416,17 @@ ${body}</DL><p>
         function confirmAddTodo() {
             const text = document.getElementById('todo-input').value.trim();
             if (!text) return;
+            const dueDate = parseTodoDueInput(document.getElementById('todo-due').value);
+            const dueTimeRaw = parseTodoDueTimeInput(document.getElementById('todo-due-time').value);
+            // 时间仅在有日期时才保存，避免"光有时间没日期"的无意义状态
+            const dueTime = dueDate ? dueTimeRaw : null;
             const todo = {
                 id: 'td-' + Date.now(),
                 text,
                 completed: false,
                 priority: currentTodoPriority,
-                dueDate: document.getElementById('todo-due').value || null,
+                dueDate,
+                dueTime,
                 groupId: currentTodoGroupId,
                 createdAt: Date.now(),
                 completedAt: null
