@@ -305,6 +305,21 @@
             background: rgba(255,255,255,0.22);
             box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5);
         }
+        /* 拖动 tab 重排：源 tab 半透明 + 落点竖线指示 */
+        .group-tab.tab-dragging { opacity: 0.4; }
+        #group-tabs, #note-tabs, #todo-tabs { position: relative; }
+        .tab-drop-indicator {
+            position: absolute;
+            top: 4px; bottom: 4px;
+            width: 2px;
+            background: rgba(255,255,255,0.75);
+            border-radius: 1px;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateX(-1px);
+            transition: opacity 0.12s ease, left 0.12s ease;
+        }
+        .tab-drop-indicator.show { opacity: 1; }
         .group-tab[contenteditable="true"] {
             outline: none;
             user-select: text;
@@ -392,6 +407,9 @@
             50%      { background: rgba(255, 255, 255, 0.14); }
         }
         #pet-nav-init-btn.breath { animation: petNavInitBreath 2.2s ease-in-out infinite; }
+        /* 待办排序下拉：当前选中项的对勾 */
+        .todo-sort-opt .todo-sort-check { opacity: 0; }
+        .todo-sort-opt.active .todo-sort-check { opacity: 0.8; }
         /* hover 右上角宠物导航时，气泡淡出让位下拉菜单，移出后恢复 */
         #pet-hint { transition: opacity 0.25s ease, transform 0.25s ease; }
         body:has(#pet-nav-wrap:hover) #pet-hint {
@@ -882,15 +900,31 @@
 
             <!-- 待办面板 -->
             <div id="panel-todo-col" class="apple-glass rounded-[2.5rem] p-6 lg:p-8 flex flex-col overflow-hidden flex-1 min-w-0 group/todo">
-                <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center justify-between mb-4 relative z-10">
                     <div class="flex items-center gap-3 text-base uppercase tracking-[0.3em] font-normal opacity-40">
                         <i data-lucide="check-square" class="w-5 h-5"></i> Tasks
                     </div>
                     <div class="flex items-center gap-2">
-                        <button onclick="resetTodoSort()" id="todo-sort-btn" title="重置为自动排序" style="opacity:0" class="hover:!opacity-100 transition-all">
-                            <i data-lucide="arrow-up-down" class="w-4 h-4"></i>
-                        </button>
-                        <button onclick="addTodo()" class="opacity-20 hover:opacity-100 transition-all">
+                        <div class="relative">
+                            <button id="todo-sort-btn" onclick="toggleTodoSortMenu(event)" title="排序方式" class="opacity-0 group-hover/todo:opacity-30 hover:!opacity-100 transition-all">
+                                <i data-lucide="arrow-up-down" class="w-4 h-4"></i>
+                            </button>
+                            <div id="todo-sort-dropdown" class="hidden absolute right-0 top-full mt-2 z-20 apple-glass rounded-xl py-1 min-w-[140px]">
+                                <button onclick="setTodoSort('priority')" data-sort="priority" class="todo-sort-opt w-full text-left px-4 py-2 text-[11px] uppercase tracking-widest font-bold hover:bg-white/10 transition-colors flex items-center justify-between gap-3">
+                                    <span>按重要性</span>
+                                    <i data-lucide="check" class="w-3 h-3 todo-sort-check"></i>
+                                </button>
+                                <button onclick="setTodoSort('due')" data-sort="due" class="todo-sort-opt w-full text-left px-4 py-2 text-[11px] uppercase tracking-widest font-bold hover:bg-white/10 transition-colors flex items-center justify-between gap-3">
+                                    <span>按截止时间</span>
+                                    <i data-lucide="check" class="w-3 h-3 todo-sort-check"></i>
+                                </button>
+                                <button onclick="setTodoSort('manual')" data-sort="manual" class="todo-sort-opt w-full text-left px-4 py-2 text-[11px] uppercase tracking-widest font-bold hover:bg-white/10 transition-colors flex items-center justify-between gap-3">
+                                    <span>手动排序</span>
+                                    <i data-lucide="check" class="w-3 h-3 todo-sort-check"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button onclick="addTodo()" class="opacity-0 group-hover/todo:opacity-30 hover:!opacity-100 transition-all">
                             <i data-lucide="plus" class="w-4 h-4"></i>
                         </button>
                         <button onclick="exportTodos()" title="导出为文本" class="opacity-0 group-hover/todo:opacity-30 hover:!opacity-100 transition-all">
@@ -1430,9 +1464,14 @@ ${body}</DL><p>
             if (saved && todoGroups.some(g => g.id === saved)) return saved;
             return todoGroups[0].id;
         })();
-        let todoManualOrder = (() => {
-            try { return JSON.parse(localStorage.getItem('todos.manualOrder') || 'false'); }
-            catch(e) { return false; }
+        // 'priority' | 'due' | 'manual'；从旧 todos.manualOrder 一次性迁移
+        let todoSortMode = (() => {
+            const saved = localStorage.getItem('todos.sortMode');
+            if (saved === 'priority' || saved === 'due' || saved === 'manual') return saved;
+            try {
+                const legacy = JSON.parse(localStorage.getItem('todos.manualOrder') || 'false');
+                return legacy ? 'manual' : 'priority';
+            } catch (e) { return 'priority'; }
         })();
         let completedSectionOpen = false;
         let currentTodoPriority = 'medium';
@@ -1664,8 +1703,9 @@ ${body}</DL><p>
             bmDragSrcGroupId = null;
         }
 
-        // 拖到分组标签 —— 跨组移动
+        // 拖到分组标签 —— 跨组移动书签（tab 自身重排由容器级 handler 处理）
         function onGroupTabDragOver(e, gid) {
+            if (tabDragState.type === 'group') return; // tab 重排时不参与，让容器层处理
             if (bmDragSrcIdx < 0) return;
             if (gid === bmDragSrcGroupId) return;
             e.preventDefault();
@@ -1676,6 +1716,7 @@ ${body}</DL><p>
             e.currentTarget.classList.remove('bm-drop-target');
         }
         function onGroupTabDrop(e, gid) {
+            if (tabDragState.type === 'group') return; // tab 重排时让容器层 drop
             e.preventDefault();
             e.currentTarget.classList.remove('bm-drop-target');
             if (bmDragSrcIdx < 0 || !bmDragSrcGroupId || gid === bmDragSrcGroupId) return;
@@ -1705,11 +1746,117 @@ ${body}</DL><p>
         }
 
         // ===== 分组标签栏 =====
+        // ===== 通用 tab 拖动重排（shortcuts / notes / tasks 三处分类标签共用） =====
+        // 容器级检测：鼠标 X 命中两 tab 之间的缝隙 → 竖线指示落点
+        const tabDragState = { type: null, srcId: null };
+        const TAB_DRAG_CFG = {
+            group:     { containerId: 'group-tabs', list: () => groups,     save: () => saveGroups(),     render: () => renderGroupTabs() },
+            note:      { containerId: 'note-tabs',  list: () => notesList,  save: () => saveNotes(),      render: () => renderNoteTabs() },
+            todoGroup: { containerId: 'todo-tabs',  list: () => todoGroups, save: () => saveTodoGroups(), render: () => renderTodoGroupTabs() }
+        };
+
+        function onTabDragStart(type, id, e) {
+            tabDragState.type = type;
+            tabDragState.srcId = id;
+            e.dataTransfer.effectAllowed = 'move';
+            try { e.dataTransfer.setData('text/plain', id); } catch (_) {}
+            e.currentTarget.classList.add('tab-dragging');
+        }
+        function onTabDragEnd(e) {
+            if (e && e.currentTarget && e.currentTarget.classList) e.currentTarget.classList.remove('tab-dragging');
+            document.querySelectorAll('.tab-dragging').forEach(el => el.classList.remove('tab-dragging'));
+            // 隐藏所有指示线
+            Object.values(TAB_DRAG_CFG).forEach(cfg => {
+                const c = document.getElementById(cfg.containerId);
+                if (c) {
+                    const ind = c.querySelector('.tab-drop-indicator');
+                    if (ind) ind.classList.remove('show');
+                }
+            });
+            tabDragState.type = null;
+            tabDragState.srcId = null;
+        }
+
+        // 根据鼠标 X 算出当前应当插入的索引（0 ~ tabs.length）
+        function computeTabInsertionIdx(container, clientX) {
+            const tabs = Array.from(container.querySelectorAll('.group-tab[draggable="true"]'));
+            for (let i = 0; i < tabs.length; i++) {
+                const r = tabs[i].getBoundingClientRect();
+                if (clientX < r.left + r.width / 2) return { idx: i, tabs };
+            }
+            return { idx: tabs.length, tabs };
+        }
+
+        // 把竖线显示到 idx 对应位置：tabs[idx-1] 右边 ~ tabs[idx] 左边 的中点
+        function showTabDropIndicator(container, idx, tabs) {
+            let indicator = container.querySelector('.tab-drop-indicator');
+            if (!indicator) {
+                indicator = document.createElement('div');
+                indicator.className = 'tab-drop-indicator';
+                container.appendChild(indicator);
+            }
+            const cRect = container.getBoundingClientRect();
+            let leftPx;
+            if (tabs.length === 0) {
+                leftPx = 0;
+            } else if (idx <= 0) {
+                const r = tabs[0].getBoundingClientRect();
+                leftPx = r.left - cRect.left - 4;
+            } else if (idx >= tabs.length) {
+                const r = tabs[tabs.length - 1].getBoundingClientRect();
+                leftPx = r.right - cRect.left + 2;
+            } else {
+                const prev = tabs[idx - 1].getBoundingClientRect();
+                const next = tabs[idx].getBoundingClientRect();
+                leftPx = (prev.right + next.left) / 2 - cRect.left;
+            }
+            leftPx += container.scrollLeft;
+            indicator.style.left = leftPx + 'px';
+            indicator.classList.add('show');
+        }
+
+        // 绑定容器级 dragover/drop/leave —— 注意只处理 tab 重排，bookmark 跨组拖拽仍走 tab 自身的 handler
+        function bindTabContainerDnD(type) {
+            const cfg = TAB_DRAG_CFG[type];
+            const container = document.getElementById(cfg.containerId);
+            if (!container || container._tabDndBound) return;
+            container._tabDndBound = true;
+            container.addEventListener('dragover', (e) => {
+                if (tabDragState.type !== type) return; // 不是 tab 重排（可能是 bookmark 拖拽，让 tab 自己处理）
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const { idx, tabs } = computeTabInsertionIdx(container, e.clientX);
+                showTabDropIndicator(container, idx, tabs);
+            });
+            container.addEventListener('dragleave', (e) => {
+                // 离开容器（不是离开内部 tab）才隐藏
+                if (e.relatedTarget && container.contains(e.relatedTarget)) return;
+                const ind = container.querySelector('.tab-drop-indicator');
+                if (ind) ind.classList.remove('show');
+            });
+            container.addEventListener('drop', (e) => {
+                if (tabDragState.type !== type) return;
+                e.preventDefault();
+                const ind = container.querySelector('.tab-drop-indicator');
+                if (ind) ind.classList.remove('show');
+                const { idx } = computeTabInsertionIdx(container, e.clientX);
+                const arr = cfg.list();
+                const srcIdx = arr.findIndex(x => x.id === tabDragState.srcId);
+                if (srcIdx < 0) return;
+                let insertAt = srcIdx < idx ? idx - 1 : idx;
+                if (insertAt === srcIdx) return; // 拖到原位无动作
+                const [item] = arr.splice(srcIdx, 1);
+                arr.splice(insertAt, 0, item);
+                cfg.save();
+                cfg.render();
+            });
+        }
+
         function renderGroupTabs() {
             const container = document.getElementById('group-tabs');
             let html = groups.map(g => {
                 const active = g.id === currentGroupId ? ' active' : '';
-                return `<button id="group-tab-${g.id}" class="group-tab${active}" onclick="switchGroup('${g.id}')" ondblclick="startRenameGroup('${g.id}', event)" oncontextmenu="showGroupCtxMenu(event,'${g.id}')" ondragover="onGroupTabDragOver(event,'${g.id}')" ondragleave="onGroupTabDragLeave(event)" ondrop="onGroupTabDrop(event,'${g.id}')" data-gid="${g.id}">${g.name}</button>`;
+                return `<button id="group-tab-${g.id}" class="group-tab${active}" draggable="true" onclick="switchGroup('${g.id}')" ondblclick="startRenameGroup('${g.id}', event)" oncontextmenu="showGroupCtxMenu(event,'${g.id}')" ondragstart="onTabDragStart('group','${g.id}',event)" ondragover="onGroupTabDragOver(event,'${g.id}')" ondragleave="onGroupTabDragLeave(event)" ondrop="onGroupTabDrop(event,'${g.id}')" ondragend="onTabDragEnd(event)" data-gid="${g.id}">${g.name}</button>`;
             }).join('');
             html += `<button onclick="openNewGroupModal()" class="flex-shrink-0 ml-1 p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity hover:bg-white/10" title="新建分组"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>`;
             container.innerHTML = html;
@@ -1926,7 +2073,18 @@ ${body}</DL><p>
         }
 
         function getSortedActive(active) {
-            if (todoManualOrder) return active;
+            if (todoSortMode === 'manual') return active;
+            if (todoSortMode === 'due') {
+                return [...active].sort((a, b) => {
+                    const ad = getTodoDueMs(a);
+                    const bd = getTodoDueMs(b);
+                    if (ad == null && bd == null) return 0;
+                    if (ad == null) return 1;
+                    if (bd == null) return -1;
+                    return ad - bd;
+                });
+            }
+            // priority（默认）：优先级 → 截止时间 二级排序
             return [...active].sort((a, b) => {
                 const pd = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
                 if (pd !== 0) return pd;
@@ -2032,12 +2190,15 @@ ${body}</DL><p>
                 return `<div
                     id="todo-group-tab-${g.id}"
                     class="group-tab flex-shrink-0${isActive ? ' active' : ''}"
+                    draggable="true"
                     onclick="switchTodoGroup('${g.id}')"
                     ondblclick="startRenameTodoGroup('${g.id}', event)"
                     oncontextmenu="showTodoGroupCtxMenu('${g.id}', event)"
                     onpointerdown="onTodoGroupTabPointerDown('${g.id}', event)"
                     onpointerup="onTodoGroupTabPointerUp()"
                     onpointerleave="onTodoGroupTabPointerUp()"
+                    ondragstart="onTabDragStart('todoGroup','${g.id}',event); onTodoGroupTabPointerUp();"
+                    ondragend="onTabDragEnd(event)"
                 >${g.name}</div>`;
             }).join('') +
             `<button onclick="createTodoGroup()" class="flex-shrink-0 ml-1 p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity hover:bg-white/10" title="新建分类">
@@ -2191,9 +2352,6 @@ ${body}</DL><p>
             } else {
                 section.classList.add('hidden');
             }
-
-            const sortBtn = document.getElementById('todo-sort-btn');
-            if (sortBtn) sortBtn.style.opacity = todoManualOrder ? '0.4' : '0';
 
             lucide.createIcons();
         }
@@ -2536,11 +2694,23 @@ ${body}</DL><p>
             renderTodos();
         }
 
-        function resetTodoSort() {
-            todoManualOrder = false;
-            localStorage.setItem('todos.manualOrder', 'false');
+        function setTodoSort(mode) {
+            if (mode !== 'priority' && mode !== 'due' && mode !== 'manual') return;
+            todoSortMode = mode;
+            localStorage.setItem('todos.sortMode', mode);
+            document.getElementById('todo-sort-dropdown').classList.add('hidden');
             renderTodos();
         }
+        function toggleTodoSortMenu(e) {
+            if (e) e.stopPropagation();
+            const dd = document.getElementById('todo-sort-dropdown');
+            // 打开前同步勾选状态
+            dd.querySelectorAll('.todo-sort-opt').forEach(opt => {
+                opt.classList.toggle('active', opt.dataset.sort === todoSortMode);
+            });
+            dd.classList.toggle('hidden');
+        }
+        bindOutsideClick('todo-sort-dropdown', 'todo-sort-btn');
 
         // ===== 拖拽排序 =====
         function onTodoDragStart(e, id) {
@@ -2582,8 +2752,9 @@ ${body}</DL><p>
             const [item] = todos.splice(srcIdx, 1);
             const newTgt = todos.findIndex(t => t.id === targetId);
             todos.splice(before ? newTgt : newTgt + 1, 0, item);
-            todoManualOrder = true;
-            localStorage.setItem('todos.manualOrder', 'true');
+            // 拖动后自动进入手动模式
+            todoSortMode = 'manual';
+            localStorage.setItem('todos.sortMode', 'manual');
             saveTodos();
             renderTodos();
         }
@@ -3400,12 +3571,15 @@ ${body}</DL><p>
                 return `<div
                     id="note-tab-${note.id}"
                     class="group-tab flex-shrink-0${isActive ? ' active' : ''}"
+                    draggable="true"
                     onclick="switchNote('${note.id}')"
                     ondblclick="startRenameNote('${note.id}', event)"
                     oncontextmenu="showNoteCtxMenu('${note.id}', event)"
                     onpointerdown="onNoteTabPointerDown('${note.id}', event)"
                     onpointerup="onNoteTabPointerUp()"
                     onpointerleave="onNoteTabPointerUp()"
+                    ondragstart="onTabDragStart('note','${note.id}',event); onNoteTabPointerUp();"
+                    ondragend="onTabDragEnd(event)"
                 >${note.title}</div>`;
             }).join('') +
             `<button onclick="createNote()" class="flex-shrink-0 ml-1 p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity hover:bg-white/10" title="新建笔记">
@@ -5170,6 +5344,10 @@ ${body}</DL><p>
             renderGroupTabs();
             renderTodoGroupTabs();
             renderTodos();
+            // 注册三个 tab 容器的拖动重排（容器级 dragover/drop + 竖线指示）
+            bindTabContainerDnD('group');
+            bindTabContainerDnD('note');
+            bindTabContainerDnD('todoGroup');
             applyPanelVisibility(); // 恢复面板开关状态，内部会触发 calcAndRenderBookmarks
             // ResizeObserver：快捷方式面板宽度变化时重新计算书签布局
             const shortcutsPanelEl = document.getElementById('panel-shortcuts');
